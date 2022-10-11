@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2022 meisme <meisme.mail@pm.me>
+ * Copyright (C) 2022 vkcr contributors
  *
  * This file is part of vkcr.
  *
