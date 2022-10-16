@@ -16,19 +16,15 @@
  * You should have received a copy of the GNU General Public License
  * along with vkcr.  If not, see <http://www.gnu.org/licenses/>.
  */
-use std::{ffi::CStr, i8};
+use std::{ffi::CStr, i8, ops::Deref};
 
-use ash::vk;
+use ash::vk::{self, CompositeAlphaFlagsKHR};
 
 use raw_window_handle::{HasRawDisplayHandle, HasRawWindowHandle};
 
 extern crate env_logger;
 
-#[cfg(debug_assertions)]
-const VALIDATION: &'static str = "VK_LAYER_KHRONOS_validation";
-
-#[cfg(not(debug_assertions))]
-const VALIDATION: &'static str = "";
+const VALIDATION: &'static str = "VK_LAYER_KHRONOS_validation\0";
 
 pub struct Game {
     window: winit::window::Window,
@@ -51,59 +47,47 @@ impl std::fmt::Display for GraphicsDevice {
             &*(self.properties.device_name.as_slice() as *const [i8] as *const [u8])
         });
 
-        write!(f, "Priority: {}, Device name: {}", self.priority, device_name.unwrap_or("Unknown device"))
+        write!(
+            f,
+            "Priority: {}, Device name: {}",
+            self.priority,
+            device_name.unwrap_or("Unknown device")
+        )
     }
 }
 
-const APP_NAME: &'static str = "VKCR Game";
-const ENGINE_NAME: &'static str = "VKCR Engine";
+const APP_NAME: &'static str = "VKCR Game\0";
+const ENGINE_NAME: &'static str = "VKCR Engine\0";
+
+unsafe extern "system" fn validation_callback(
+    message_severity: vk::DebugUtilsMessageSeverityFlagsEXT,
+    message_type: vk::DebugUtilsMessageTypeFlagsEXT,
+    p_callback_data: *const vk::DebugUtilsMessengerCallbackDataEXT,
+    _p_user_data: *mut std::ffi::c_void,
+) -> vk::Bool32 {
+    let message = std::ffi::CStr::from_ptr((*p_callback_data).p_message);
+    println!(
+        "[{:?}] [{:?}] {}",
+        message_severity,
+        message_type,
+        message
+            .to_str()
+            .expect("Failed to convert message from CStr to str")
+    );
+    vk::FALSE
+}
 
 impl Game {
     pub fn init() {
-        #[cfg(all(windows))]
-        let extensions: Vec<*const i8> = vec![
+        let mut instance_extensions: Vec<*const i8> = vec![
             ash::extensions::khr::Surface::name().as_ptr(),
-            ash::extensions::khr::Win32Surface::name().as_ptr(),
             ash::extensions::ext::DebugUtils::name().as_ptr(),
         ];
 
-        #[cfg(all(
-            unix,
-            not(target_os = "android"),
-            not(target_os = "macos"),
-            not(target_os = "linux")
-        ))]
-        let instance_extensions: Vec<*const i8> = vec![
-            ash::extensions::khr::Surface::name().as_ptr(),
-            ash::extensions::khr::XlibSurface::name().as_ptr(),
-            ash::extensions::ext::DebugUtils::name().as_ptr(),
-        ];
-
-        #[cfg(target_os = "linux")]
-        let instance_extensions: Vec<*const i8> = vec![
-            ash::extensions::khr::Surface::name().as_ptr(),
-            ash::extensions::khr::XlibSurface::name().as_ptr(),
-            ash::extensions::khr::WaylandSurface::name().as_ptr(),
-            ash::extensions::ext::DebugUtils::name().as_ptr(),
-        ];
-
-        #[cfg(target_os = "macos")]
-        let instance_extensions: Vec<*const i8> = vec![
-            ash::extensions::khr::Surface::name().as_ptr(),
-            ash::extensions::khr::MacOSSurface::name().as_ptr(),
-            ash::extensions::ext::DebugUtils::name().as_ptr(),
-        ];
-
-        #[cfg(target_os = "android")]
-        let instance_extensions: Vec<*const i8> = vec![
-            ash::extensions::khr::Surface::name().as_ptr(),
-            ash::extensions::khr::AndroidSurface::name().as_ptr(),
-            ash::extensions::ext::DebugUtils::name().as_ptr(),
-        ];
-
-        let validation_layers: Vec<*const i8> = vec![VALIDATION.as_ptr() as *const i8];
+        let enable_validation = std::env::var("ENABLE_VALIDATION").unwrap_or("0".to_string());
 
         std::env::set_var("WINIT_UNIX_BACKEND", "x11");
+
         env_logger::init();
 
         let event_loop = winit::event_loop::EventLoop::new();
@@ -120,7 +104,8 @@ impl Game {
             .application_version(vk::make_api_version(0, 0, 1, 0))
             .engine_name(unsafe { &CStr::from_ptr(ENGINE_NAME.as_ptr() as *const i8) })
             .engine_version(vk::make_api_version(0, 0, 1, 0))
-            .api_version(vk::make_api_version(0, 1, 0, 0));
+            .api_version(vk::make_api_version(0, 1, 0, 0))
+            .build();
 
         let layers = entry
             .enumerate_instance_layer_properties()
@@ -130,7 +115,7 @@ impl Game {
 
         for layer in layers.iter() {
             debug!(
-                "{}",
+                "   {}",
                 std::str::from_utf8(unsafe {
                     &*(layer.layer_name.as_slice() as *const [i8] as *const [u8])
                 })
@@ -138,15 +123,48 @@ impl Game {
             );
         }
 
+        let instance_layers: Vec<*const i8> = if enable_validation == "1" {
+            vec![VALIDATION.as_ptr() as *const i8]
+        } else {
+            vec![]
+        };
+
+        for extension in ash_window::enumerate_required_extensions(window.raw_display_handle())
+            .expect("Failed to enumerate required extensions")
+        {
+            instance_extensions.push(*extension);
+        }
+
         let instance_create_info = vk::InstanceCreateInfo::builder()
             .application_info(&application_info)
-            .enabled_extension_names(instance_extensions.as_slice());
+            .enabled_extension_names(instance_extensions.as_slice())
+            .enabled_layer_names(instance_layers.as_slice())
+            .build();
 
         let instance: ash::Instance = unsafe {
             entry
                 .create_instance(&instance_create_info, None)
                 .expect("Failed to create instance")
         };
+
+        let debug_utils = ash::extensions::ext::DebugUtils::new(&entry, &instance);
+        let debug_create_info = vk::DebugUtilsMessengerCreateInfoEXT::builder()
+            .pfn_user_callback(Some(validation_callback))
+            .message_severity(
+                vk::DebugUtilsMessageSeverityFlagsEXT::VERBOSE
+                    | vk::DebugUtilsMessageSeverityFlagsEXT::WARNING
+                    | vk::DebugUtilsMessageSeverityFlagsEXT::INFO
+                    | vk::DebugUtilsMessageSeverityFlagsEXT::ERROR,
+            )
+            .message_type(
+                vk::DebugUtilsMessageTypeFlagsEXT::PERFORMANCE
+                    | vk::DebugUtilsMessageTypeFlagsEXT::GENERAL
+                    | vk::DebugUtilsMessageTypeFlagsEXT::VALIDATION,
+            )
+            .build();
+
+        unsafe { debug_utils.create_debug_utils_messenger(&debug_create_info, None) }
+            .expect("Failed to create debug utils messenger");
 
         let physical_devices = unsafe {
             instance
@@ -156,7 +174,7 @@ impl Game {
 
         let mut devices: Vec<GraphicsDevice> = Vec::new();
 
-        for physical_device in physical_devices {
+        for physical_device in physical_devices.clone() {
             let families =
                 unsafe { instance.get_physical_device_queue_family_properties(physical_device) };
             let properties = unsafe { instance.get_physical_device_properties(physical_device) };
@@ -188,9 +206,17 @@ impl Game {
         let device_extensions: Vec<*const i8> =
             vec![ash::extensions::khr::Swapchain::name().as_ptr()];
 
+        let queue_create_info = vk::DeviceQueueCreateInfo::builder()
+            .flags(vk::DeviceQueueCreateFlags::empty())
+            .build();
+
+        let queue_create_infos = vec![queue_create_info];
+
         let device_create_info = vk::DeviceCreateInfo::builder()
-            .enabled_layer_names(validation_layers.as_slice())
-            .enabled_extension_names(&device_extensions);
+            .enabled_layer_names(instance_layers.as_slice())
+            .enabled_extension_names(&device_extensions)
+            .queue_create_infos(&queue_create_infos)
+            .build();
 
         devices.sort_by_key(|v| std::cmp::Reverse(v.priority));
 
@@ -208,17 +234,37 @@ impl Game {
             )
             .expect("Failed to create surface")
         };
+        let surface_extension = ash::extensions::khr::Surface::new(&entry, &instance);
+
+        let capabilities = unsafe {
+            surface_extension.get_physical_device_surface_capabilities(devices[0].device, surface)
+        }
+        .expect("Failed to get capabilities");
+
+        let formats = unsafe {
+            surface_extension.get_physical_device_surface_formats(physical_devices[0], surface)
+        };
 
         let swapchain_create_info = vk::SwapchainCreateInfoKHR::builder()
             .image_usage(vk::ImageUsageFlags::COLOR_ATTACHMENT)
             .surface(surface)
-            .present_mode(vk::PresentModeKHR::FIFO);
+            .image_format(formats.expect("Failed to get supported formats")[0].format)
+            .image_color_space(vk::ColorSpaceKHR::SRGB_NONLINEAR)
+            .min_image_count(capabilities.min_image_count)
+            .image_extent(capabilities.min_image_extent)
+            .image_array_layers(0)
+            .clipped(true)
+            .image_sharing_mode(vk::SharingMode::EXCLUSIVE)
+            .composite_alpha(CompositeAlphaFlagsKHR::empty())
+            .flags(vk::SwapchainCreateFlagsKHR::empty())
+            .present_mode(vk::PresentModeKHR::FIFO)
+            .build();
 
-        let swapchain = unsafe {
-            ash::extensions::khr::Swapchain::new(&instance, &device)
-                .create_swapchain(&swapchain_create_info, None)
-                .expect("Failed to create swapchain")
-        };
+        // let swapchain = unsafe {
+        //     ash::extensions::khr::Swapchain::new(&instance, &device)
+        //         .create_swapchain(&swapchain_create_info, None) // segfault here
+        //         .expect("Failed to create swapchain")
+        // };
 
         let game = Game {
             window,
