@@ -4,7 +4,12 @@ use ash::vk;
 
 use raw_window_handle::HasRawDisplayHandle;
 
-use crate::core::{debug::create_debug, device::create_device, swapchain::create_swapchain};
+use crate::core::{
+    debug::create_debug, device::create_device, surface::create_surface,
+    swapchain::create_swapchain,
+};
+
+use super::structures::{DebugInfo, DeviceInfo, SurfaceInfo, SwapchainInfo};
 
 extern crate env_logger;
 
@@ -13,9 +18,11 @@ const VALIDATION: &'static str = "VK_LAYER_KHRONOS_validation\0";
 
 pub struct Game {
     window: winit::window::Window,
-    _instance: ash::Instance,
-    _device: ash::Device,
-    // pipeline: vk::Pipeline,
+    instance: ash::Instance,
+    debug_info: DebugInfo,
+    device_info: DeviceInfo,
+    surface_info: SurfaceInfo,
+    swapchain_info: SwapchainInfo,
 }
 
 const APP_NAME: &'static str = "VKCR\0";
@@ -92,18 +99,21 @@ impl Game {
                 .expect("Failed to create instance")
         };
 
-        create_debug(&entry, &instance);
+        let debug_info = create_debug(&entry, &instance);
 
-        let (devices, device, queue_family) = create_device(instance.clone());
+        let device_info = create_device(instance.clone());
 
-        let _swapchain =
-            create_swapchain(devices, queue_family, &entry, &instance, &window, &device);
+        let surface_info = create_surface(&window, &entry, &instance);
+
+        let swapchain_info = create_swapchain(device_info.clone(), surface_info.clone(), &instance);
 
         let game = Game {
             window,
-            _instance: instance,
-            _device: device,
-            // pipeline: todo!(),
+            instance,
+            debug_info,
+            device_info,
+            surface_info,
+            swapchain_info,
         };
 
         game.run(event_loop);
@@ -125,7 +135,7 @@ impl Game {
                     window_id,
                     event: winit::event::WindowEvent::CloseRequested,
                 } if window_id == self.window.id() => {
-                    Game::cleanup();
+                    self.cleanup();
                     *control_flow = winit::event_loop::ControlFlow::Exit;
                 }
                 _ => (),
@@ -133,7 +143,25 @@ impl Game {
         });
     }
 
-    fn cleanup() {}
+    fn cleanup(&self) {
+        unsafe {
+            self.swapchain_info
+                .loader
+                .destroy_swapchain(self.swapchain_info.swapchain, None)
+        };
+        unsafe {
+            self.surface_info
+                .surface_loader
+                .destroy_surface(self.surface_info.surface, None)
+        };
+        unsafe { self.device_info.device.destroy_device(None) };
+        unsafe {
+            self.debug_info
+                .loader
+                .destroy_debug_utils_messenger(self.debug_info.messenger, None)
+        };
+        unsafe { self.instance.destroy_instance(None) };
+    }
 
     fn handle_input(&self, event: Option<winit::event::VirtualKeyCode>) {
         if event.is_none() {

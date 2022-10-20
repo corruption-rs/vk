@@ -1,5 +1,7 @@
 use ash::vk;
 
+use super::structures::DebugInfo;
+
 unsafe extern "system" fn debug_callback(
     message_severity: vk::DebugUtilsMessageSeverityFlagsEXT,
     message_type: vk::DebugUtilsMessageTypeFlagsEXT,
@@ -18,7 +20,7 @@ unsafe extern "system" fn debug_callback(
     vk::FALSE
 }
 
-pub fn create_debug(entry: &ash::Entry, instance: &ash::Instance) {
+pub fn create_debug(entry: &ash::Entry, instance: &ash::Instance) -> DebugInfo {
     let debug_utils = ash::extensions::ext::DebugUtils::new(&entry, &instance);
     let debug_create_info = vk::DebugUtilsMessengerCreateInfoEXT::builder()
         .pfn_user_callback(Some(debug_callback))
@@ -34,6 +36,11 @@ pub fn create_debug(entry: &ash::Entry, instance: &ash::Instance) {
                 | vk::DebugUtilsMessageTypeFlagsEXT::VALIDATION,
         );
 
-    unsafe { debug_utils.create_debug_utils_messenger(&debug_create_info, None) }
+    let messenger = unsafe { debug_utils.create_debug_utils_messenger(&debug_create_info, None) }
         .expect("Failed to create debug utils messenger");
+
+    DebugInfo {
+        loader: debug_utils,
+        messenger,
+    }
 }

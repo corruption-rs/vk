@@ -1,5 +1,6 @@
+pub mod app;
 mod debug;
 mod device;
-pub mod game;
 mod structures;
+mod surface;
 mod swapchain;

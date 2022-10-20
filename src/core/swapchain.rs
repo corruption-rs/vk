@@ -1,43 +1,39 @@
-use ash::vk::{self, CompositeAlphaFlagsKHR, SwapchainKHR};
-use raw_window_handle::{HasRawDisplayHandle, HasRawWindowHandle};
+use ash::vk::{self, CompositeAlphaFlagsKHR};
 
-use super::structures::{LogicalDevice, QueueFamily};
+use super::structures::{DeviceInfo, SurfaceInfo, SwapchainInfo};
 
 pub fn create_swapchain(
-    devices: Vec<LogicalDevice>,
-    queue_families: Vec<QueueFamily>,
-    entry: &ash::Entry,
+    device_info: DeviceInfo,
+    surface_info: SurfaceInfo,
     instance: &ash::Instance,
-    window: &winit::window::Window,
-    device: &ash::Device,
-) -> SwapchainKHR {
-    let surface = unsafe {
-        ash_window::create_surface(
-            &entry,
-            &instance,
-            window.raw_display_handle(),
-            window.raw_window_handle(),
-            None,
-        )
-        .expect("Failed to create surface")
-    };
-
-    let surface_extension = ash::extensions::khr::Surface::new(&entry, &instance);
-
+) -> SwapchainInfo {
     let capabilities = unsafe {
-        surface_extension
-            .get_physical_device_surface_capabilities(devices[0].physical_device, surface)
+        surface_info
+            .surface_loader
+            .get_physical_device_surface_capabilities(
+                device_info.logical_devices[0].physical_device,
+                surface_info.surface,
+            )
     }
     .expect("Failed to get capabilities");
 
     let formats = unsafe {
-        surface_extension.get_physical_device_surface_formats(devices[0].physical_device, surface)
+        surface_info
+            .surface_loader
+            .get_physical_device_surface_formats(
+                device_info.logical_devices[0].physical_device,
+                surface_info.surface,
+            )
     };
 
-    let indices: Vec<u32> = queue_families.into_iter().map(|k| k.index).collect();
+    let indices: Vec<u32> = device_info
+        .queue_families
+        .into_iter()
+        .map(|k| k.index)
+        .collect();
 
     let swapchain_create_info = vk::SwapchainCreateInfoKHR::builder()
-        .surface(surface)
+        .surface(surface_info.surface)
         .pre_transform(capabilities.current_transform)
         .image_usage(vk::ImageUsageFlags::COLOR_ATTACHMENT)
         .image_format(formats.clone().expect("Failed to get supported formats")[0].format)
@@ -54,12 +50,13 @@ pub fn create_swapchain(
         .queue_family_indices(&indices)
         .present_mode(vk::PresentModeKHR::FIFO);
 
-    let loader = ash::extensions::khr::Swapchain::new(&instance, &device);
+    let loader = ash::extensions::khr::Swapchain::new(&instance, &device_info.device);
 
     let swapchain = unsafe {
         loader
             .create_swapchain(&swapchain_create_info, None) // crash here
             .expect("Failed to create swapchain")
     };
-    swapchain
+
+    SwapchainInfo { swapchain, loader }
 }

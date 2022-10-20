@@ -1,17 +1,17 @@
 use ash::vk;
 
-use super::structures::{LogicalDevice, QueueFamily};
+use super::structures::{LogicalDevice, QueueFamily, DeviceInfo};
 
-pub fn create_device<'a>(
+pub fn create_device(
     instance: ash::Instance,
-) -> (Vec<LogicalDevice>, ash::Device, Vec<QueueFamily<'a>>) {
+) -> DeviceInfo {
     let physical_devices = unsafe {
         instance
             .enumerate_physical_devices()
             .expect("Failed to enumerate physical devices")
     };
 
-    let mut graphics_devices: Vec<LogicalDevice> = Vec::new();
+    let mut logical_devices: Vec<LogicalDevice> = Vec::new();
     let mut index = None;
     for physical_device in physical_devices.clone() {
         let families =
@@ -26,7 +26,7 @@ pub fn create_device<'a>(
                     vk::PhysicalDeviceType::VIRTUAL_GPU => 1,
                     _ => 0,
                 };
-                graphics_devices.push(LogicalDevice {
+                logical_devices.push(LogicalDevice {
                     physical_device,
                     priority,
                     properties,
@@ -37,25 +37,25 @@ pub fn create_device<'a>(
         }
     }
 
-    if graphics_devices.len() == 0 {
+    if logical_devices.len() == 0 {
         panic!("No devices that support Vulkan were found (are your graphics drivers up to date?)");
     }
 
-    for graphics_device in &graphics_devices {
+    for graphics_device in &logical_devices {
         debug!("{}", graphics_device);
     }
 
     let device_extensions: Vec<*const i8> = vec![ash::extensions::khr::Swapchain::name().as_ptr()];
 
-    let queue_family = vec![QueueFamily {
-        priorities: &[1.0],
+    let queue_families = vec![QueueFamily {
+        priorities: Box::new([1.0]),
         index: index.expect("How did you get here? There are no Vulkan capable devices on your system, but you somehow got this far")
     }];
 
     let queue_create_info = vk::DeviceQueueCreateInfo::builder()
         .flags(vk::DeviceQueueCreateFlags::empty())
-        .queue_family_index(queue_family[0].index)
-        .queue_priorities(queue_family[0].priorities)
+        .queue_family_index(queue_families[0].index)
+        .queue_priorities(&queue_families[0].priorities)
         .build();
 
     let queue_create_infos = vec![queue_create_info];
@@ -64,16 +64,18 @@ pub fn create_device<'a>(
         .enabled_extension_names(&device_extensions)
         .queue_create_infos(&queue_create_infos);
 
-    graphics_devices.sort_by_key(|v| std::cmp::Reverse(v.priority));
+    logical_devices.sort_by_key(|v| std::cmp::Reverse(v.priority));
 
     let device = unsafe {
         instance.create_device(
-            graphics_devices[0].physical_device,
+            logical_devices[0].physical_device,
             &device_create_info,
             None,
         )
     }
     .expect("Failed to create device");
 
-    (graphics_devices, device, queue_family)
+    DeviceInfo {
+        logical_devices, device, queue_families,
+    }
 }
