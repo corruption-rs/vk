@@ -16,7 +16,7 @@ extern crate env_logger;
 const API_DUMP: &'static str = "VK_LAYER_LUNARG_api_dump\0";
 const VALIDATION: &'static str = "VK_LAYER_KHRONOS_validation\0";
 
-pub struct Game {
+pub struct App {
     window: winit::window::Window,
     instance: ash::Instance,
     debug_info: DebugInfo,
@@ -28,7 +28,7 @@ pub struct Game {
 const APP_NAME: &'static str = "VKCR\0";
 const ENGINE_NAME: &'static str = "VKCR Renderer\0";
 
-impl Game {
+impl App {
     pub fn init() {
         let mut instance_extensions: Vec<*const i8> =
             vec![ash::extensions::ext::DebugUtils::name().as_ptr()];
@@ -107,7 +107,7 @@ impl Game {
 
         let swapchain_info = create_swapchain(device_info.clone(), surface_info.clone(), &instance);
 
-        let game = Game {
+        let game = App {
             window,
             instance,
             debug_info,

@@ -1,5 +1,5 @@
 use vkcr::core;
 
 fn main() {
-    core::app::Game::init();
+    core::app::App::init();
 }
