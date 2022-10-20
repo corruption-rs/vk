@@ -54,7 +54,7 @@ pub fn create_swapchain(
 
     let swapchain = unsafe {
         loader
-            .create_swapchain(&swapchain_create_info, None) // crash here
+            .create_swapchain(&swapchain_create_info, None)
             .expect("Failed to create swapchain")
     };
 

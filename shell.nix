@@ -11,6 +11,7 @@ pkgs.mkShell {
       pkgs.vulkan-headers 
       pkgs.vulkan-tools
       pkgs.vulkan-tools-lunarg
+      pkgs.renderdoc
     ];
 
   inputsFrom = [ pkgs.vulkan-validation-layers  pkgs.vulkan-loader ];

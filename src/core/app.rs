@@ -14,6 +14,7 @@ use super::structures::{DebugInfo, DeviceInfo, SurfaceInfo, SwapchainInfo};
 extern crate env_logger;
 
 const API_DUMP: &'static str = "VK_LAYER_LUNARG_api_dump\0";
+const RENDERDOC_CAPTURE: &'static str = "VK_LAYER_RENDERDOC_Capture\0";
 const VALIDATION: &'static str = "VK_LAYER_KHRONOS_validation\0";
 
 pub struct App {
@@ -33,8 +34,9 @@ impl App {
         let mut instance_extensions: Vec<*const i8> =
             vec![ash::extensions::ext::DebugUtils::name().as_ptr()];
 
-        let enable_validation = std::env::var("ENABLE_VALIDATION").unwrap_or("0".to_string());
         let enable_api_dump = std::env::var("ENABLE_API_DUMP").unwrap_or("0".to_string());
+        let enable_renderdoc_capture = std::env::var("ENABLE_RENDERDOC_CAPTURE").unwrap_or("0".to_string());
+        let enable_validation = std::env::var("ENABLE_VALIDATION").unwrap_or("0".to_string());
 
         std::env::set_var("WINIT_UNIX_BACKEND", "x11");
 
@@ -72,14 +74,18 @@ impl App {
             );
         }
 
-        let mut instance_layers: Vec<*const i8> = if enable_validation == "1" {
-            vec![VALIDATION.as_ptr() as *const i8]
-        } else {
-            vec![]
-        };
-
+        let mut instance_layers: Vec<*const i8> = Vec::new();
+        
         if enable_api_dump == "1" {
             instance_layers.push(API_DUMP.as_ptr() as *const i8);
+        }
+        
+        if enable_renderdoc_capture == "1" {
+            instance_layers.push(RENDERDOC_CAPTURE.as_ptr() as *const i8);
+        }
+
+        if enable_validation == "1" {
+            instance_layers.push(VALIDATION.as_ptr() as *const i8);
         }
 
         for extension in ash_window::enumerate_required_extensions(window.raw_display_handle())
