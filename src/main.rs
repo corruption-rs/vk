@@ -1,5 +1,5 @@
-use vkcr::core;
+use vkcr::core::app::App;
 
 fn main() {
-    core::app::App::init();
+    App::init();
 }

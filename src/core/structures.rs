@@ -36,6 +36,7 @@ pub struct SurfaceInfo {
 pub struct SwapchainInfo {
     pub loader: ash::extensions::khr::Swapchain,
     pub swapchain: vk::SwapchainKHR,
+    pub swapchain_views: Vec<vk::ImageView>
 }
 
 impl std::fmt::Display for LogicalDevice {

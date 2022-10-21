@@ -58,5 +58,32 @@ pub fn create_swapchain(
             .expect("Failed to create swapchain")
     };
 
-    SwapchainInfo { swapchain, loader }
+    let swapchain_images =
+        unsafe { loader.get_swapchain_images(swapchain) }.expect("Failed to get swapchain images");
+
+    let mut swapchain_views: Vec<vk::ImageView> = Vec::new();
+
+    for image in swapchain_images {
+        let subresource_range = vk::ImageSubresourceRange::builder()
+            .aspect_mask(vk::ImageAspectFlags::COLOR)
+            .level_count(1)
+            .layer_count(1);
+
+        let view_create_info = vk::ImageViewCreateInfo::builder()
+            .format(formats.clone().expect("Failed to get supported formats")[0].format)
+            .view_type(vk::ImageViewType::TYPE_2D)
+            .subresource_range(*subresource_range)
+            .image(image);
+
+        let view = unsafe {
+            device_info
+                .device
+                .create_image_view(&view_create_info, None)
+        }
+        .expect("Failed to create image view");
+
+        swapchain_views.push(view);
+    }
+
+    SwapchainInfo { swapchain, loader, swapchain_views }
 }

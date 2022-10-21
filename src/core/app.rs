@@ -4,14 +4,20 @@ use ash::vk;
 
 use raw_window_handle::HasRawDisplayHandle;
 
-use crate::core::{
-    debug::create_debug, device::create_device, surface::create_surface,
-    swapchain::create_swapchain,
-};
+#[cfg(debug_assertions)]
+use crate::core::debug::create_debug;
 
-use super::structures::{DebugInfo, DeviceInfo, SurfaceInfo, SwapchainInfo};
+use crate::core::{device::create_device, surface::create_surface, swapchain::create_swapchain};
+
+#[cfg(debug_assertions)]
+use super::structures::DebugInfo;
+
+use super::structures::{DeviceInfo, SurfaceInfo, SwapchainInfo};
 
 extern crate env_logger;
+
+const APP_NAME: &'static str = "VKCR\0";
+const ENGINE_NAME: &'static str = "VKCR Renderer\0";
 
 const API_DUMP: &'static str = "VK_LAYER_LUNARG_api_dump\0";
 const RENDERDOC_CAPTURE: &'static str = "VK_LAYER_RENDERDOC_Capture\0";
@@ -20,14 +26,12 @@ const VALIDATION: &'static str = "VK_LAYER_KHRONOS_validation\0";
 pub struct App {
     window: winit::window::Window,
     instance: ash::Instance,
+    #[cfg(debug_assertions)]
     debug_info: DebugInfo,
     device_info: DeviceInfo,
     surface_info: SurfaceInfo,
     swapchain_info: SwapchainInfo,
 }
-
-const APP_NAME: &'static str = "VKCR\0";
-const ENGINE_NAME: &'static str = "VKCR Renderer\0";
 
 impl App {
     pub fn init() {
@@ -35,7 +39,8 @@ impl App {
             vec![ash::extensions::ext::DebugUtils::name().as_ptr()];
 
         let enable_api_dump = std::env::var("ENABLE_API_DUMP").unwrap_or("0".to_string());
-        let enable_renderdoc_capture = std::env::var("ENABLE_RENDERDOC_CAPTURE").unwrap_or("0".to_string());
+        let enable_renderdoc_capture =
+            std::env::var("ENABLE_RENDERDOC_CAPTURE").unwrap_or("0".to_string());
         let enable_validation = std::env::var("ENABLE_VALIDATION").unwrap_or("0".to_string());
 
         std::env::set_var("WINIT_UNIX_BACKEND", "x11");
@@ -49,14 +54,14 @@ impl App {
             .build(&event_loop)
             .expect("Failed to create window");
 
-        let entry = unsafe { ash::Entry::load().expect("Failed to load entry") };
-
         let application_info = vk::ApplicationInfo::builder()
             .application_name(unsafe { &CStr::from_ptr(APP_NAME.as_ptr() as *const i8) })
             .application_version(vk::make_api_version(0, 0, 1, 0))
             .engine_name(unsafe { &CStr::from_ptr(ENGINE_NAME.as_ptr() as *const i8) })
             .engine_version(vk::make_api_version(0, 0, 1, 0))
             .api_version(vk::make_api_version(0, 1, 0, 0));
+
+        let entry = ash::Entry::linked();
 
         let layers = entry
             .enumerate_instance_layer_properties()
@@ -75,11 +80,11 @@ impl App {
         }
 
         let mut instance_layers: Vec<*const i8> = Vec::new();
-        
+
         if enable_api_dump == "1" {
             instance_layers.push(API_DUMP.as_ptr() as *const i8);
         }
-        
+
         if enable_renderdoc_capture == "1" {
             instance_layers.push(RENDERDOC_CAPTURE.as_ptr() as *const i8);
         }
@@ -105,9 +110,10 @@ impl App {
                 .expect("Failed to create instance")
         };
 
+        #[cfg(debug_assertions)]
         let debug_info = create_debug(&entry, &instance);
 
-        let device_info = create_device(instance.clone());
+        let device_info = create_device(&instance);
 
         let surface_info = create_surface(&window, &entry, &instance);
 
@@ -116,6 +122,7 @@ impl App {
         let game = App {
             window,
             instance,
+            #[cfg(debug_assertions)]
             debug_info,
             device_info,
             surface_info,
@@ -150,6 +157,10 @@ impl App {
     }
 
     fn cleanup(&self) {
+        for view in &self.swapchain_info.swapchain_views {
+            unsafe { self.device_info.device.destroy_image_view(*view, None) }
+        }
+
         unsafe {
             self.swapchain_info
                 .loader
@@ -161,11 +172,14 @@ impl App {
                 .destroy_surface(self.surface_info.surface, None)
         };
         unsafe { self.device_info.device.destroy_device(None) };
+
+        #[cfg(debug_assertions)]
         unsafe {
             self.debug_info
                 .loader
                 .destroy_debug_utils_messenger(self.debug_info.messenger, None)
         };
+
         unsafe { self.instance.destroy_instance(None) };
     }
 

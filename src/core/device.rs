@@ -3,7 +3,7 @@ use ash::vk;
 use super::structures::{LogicalDevice, QueueFamily, DeviceInfo};
 
 pub fn create_device(
-    instance: ash::Instance,
+    instance: &ash::Instance,
 ) -> DeviceInfo {
     let physical_devices = unsafe {
         instance

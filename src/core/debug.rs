@@ -3,20 +3,22 @@ use ash::vk;
 use super::structures::DebugInfo;
 
 unsafe extern "system" fn debug_callback(
-    message_severity: vk::DebugUtilsMessageSeverityFlagsEXT,
-    message_type: vk::DebugUtilsMessageTypeFlagsEXT,
-    p_callback_data: *const vk::DebugUtilsMessengerCallbackDataEXT,
+    _message_severity: vk::DebugUtilsMessageSeverityFlagsEXT,
+    _message_type: vk::DebugUtilsMessageTypeFlagsEXT,
+    _p_callback_data: *const vk::DebugUtilsMessengerCallbackDataEXT,
     _p_user_data: *mut std::ffi::c_void,
 ) -> vk::Bool32 {
-    let message = std::ffi::CStr::from_ptr((*p_callback_data).p_message);
-    println!(
-        "[{:?}] [{:?}] {}",
-        message_severity,
-        message_type,
-        message
-            .to_str()
-            .expect("Failed to convert message from CStr to str")
-    );
+    {
+        let _message = std::ffi::CStr::from_ptr((*_p_callback_data).p_message);
+        println!(
+            "[{:?}] [{:?}] {}",
+            _message_severity,
+            _message_type,
+            _message
+                .to_str()
+                .expect("Failed to convert message from CStr to str")
+        );
+    }
     vk::FALSE
 }
 
@@ -25,14 +27,14 @@ pub fn create_debug(entry: &ash::Entry, instance: &ash::Instance) -> DebugInfo {
     let debug_create_info = vk::DebugUtilsMessengerCreateInfoEXT::builder()
         .pfn_user_callback(Some(debug_callback))
         .message_severity(
-            vk::DebugUtilsMessageSeverityFlagsEXT::VERBOSE
-                | vk::DebugUtilsMessageSeverityFlagsEXT::WARNING
+            vk::DebugUtilsMessageSeverityFlagsEXT::ERROR
                 | vk::DebugUtilsMessageSeverityFlagsEXT::INFO
-                | vk::DebugUtilsMessageSeverityFlagsEXT::ERROR,
+                | vk::DebugUtilsMessageSeverityFlagsEXT::VERBOSE
+                | vk::DebugUtilsMessageSeverityFlagsEXT::WARNING,
         )
         .message_type(
-            vk::DebugUtilsMessageTypeFlagsEXT::PERFORMANCE
-                | vk::DebugUtilsMessageTypeFlagsEXT::GENERAL
+            vk::DebugUtilsMessageTypeFlagsEXT::GENERAL
+                | vk::DebugUtilsMessageTypeFlagsEXT::PERFORMANCE
                 | vk::DebugUtilsMessageTypeFlagsEXT::VALIDATION,
         );
 
