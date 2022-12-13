@@ -7,12 +7,15 @@ use raw_window_handle::HasRawDisplayHandle;
 #[cfg(debug_assertions)]
 use crate::core::debug::create_debug;
 
-use crate::core::{device::create_device, surface::create_surface, swapchain::create_swapchain};
+use crate::core::{
+    device::create_device, pipeline::create_pipeline, surface::create_surface,
+    swapchain::create_swapchain,
+};
 
 #[cfg(debug_assertions)]
 use super::structures::DebugInfo;
 
-use super::structures::{DeviceInfo, SurfaceInfo, SwapchainInfo};
+use super::structures::{DeviceInfo, PipelineInfo, SurfaceInfo, SwapchainInfo};
 
 extern crate env_logger;
 
@@ -26,11 +29,13 @@ const VALIDATION: &'static str = "VK_LAYER_KHRONOS_validation\0";
 pub struct App {
     window: winit::window::Window,
     instance: ash::Instance,
-    #[cfg(debug_assertions)]
-    debug_info: DebugInfo,
     device_info: DeviceInfo,
     surface_info: SurfaceInfo,
     swapchain_info: SwapchainInfo,
+    pipeline_info: PipelineInfo,
+
+    #[cfg(debug_assertions)]
+    debug_info: DebugInfo,
 }
 
 impl App {
@@ -119,14 +124,23 @@ impl App {
 
         let swapchain_info = create_swapchain(device_info.clone(), surface_info.clone(), &instance);
 
+        let pipeline_info = create_pipeline(
+            &device_info.device,
+            "assets/shaders/default",
+            &swapchain_info.extent,
+            &swapchain_info.formats,
+        );
+
         let game = App {
             window,
             instance,
-            #[cfg(debug_assertions)]
-            debug_info,
             device_info,
             surface_info,
             swapchain_info,
+            pipeline_info,
+
+            #[cfg(debug_assertions)]
+            debug_info,
         };
 
         game.run(event_loop);
@@ -159,6 +173,37 @@ impl App {
     fn cleanup(&self) {
         for view in &self.swapchain_info.swapchain_views {
             unsafe { self.device_info.device.destroy_image_view(*view, None) }
+        }
+
+        unsafe {
+            self.device_info
+                .device
+                .destroy_render_pass(self.pipeline_info.render_pass, None)
+        }
+
+        unsafe {
+            self.device_info
+                .device
+                .destroy_pipeline_layout(self.pipeline_info.pipeline_layout, None)
+        }
+
+        unsafe {
+            for shader_module in self.pipeline_info.shader_modules {
+                self.device_info
+                    .device
+                    .destroy_shader_module(shader_module, None)
+            }
+        }
+
+        unsafe {
+            self.device_info.device.destroy_pipeline(
+                *self
+                    .pipeline_info
+                    .pipeline
+                    .first()
+                    .expect("Failed to find first pipeline"),
+                None,
+            )
         }
 
         unsafe {

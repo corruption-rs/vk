@@ -20,6 +20,14 @@ pub struct LogicalDevice {
     pub priority: u8,
 }
 
+#[derive(Clone)]
+pub struct PipelineInfo {
+    pub pipeline: Vec<vk::Pipeline>,
+    pub pipeline_layout: vk::PipelineLayout,
+    pub render_pass: vk::RenderPass,
+    pub shader_modules: [vk::ShaderModule; 2]
+}
+
 #[derive(Debug, Clone)]
 pub struct QueueFamily {
     pub priorities: Box<[f32]>,
@@ -36,7 +44,9 @@ pub struct SurfaceInfo {
 pub struct SwapchainInfo {
     pub loader: ash::extensions::khr::Swapchain,
     pub swapchain: vk::SwapchainKHR,
-    pub swapchain_views: Vec<vk::ImageView>
+    pub swapchain_views: Vec<vk::ImageView>,
+    pub formats: Vec<vk::SurfaceFormatKHR>,
+    pub extent: vk::Extent2D
 }
 
 impl std::fmt::Display for LogicalDevice {

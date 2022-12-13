@@ -24,7 +24,7 @@ pub fn create_swapchain(
                 device_info.logical_devices[0].physical_device,
                 surface_info.surface,
             )
-    };
+    }.expect("Failed to get device formats");
 
     let indices: Vec<u32> = device_info
         .queue_families
@@ -36,8 +36,8 @@ pub fn create_swapchain(
         .surface(surface_info.surface)
         .pre_transform(capabilities.current_transform)
         .image_usage(vk::ImageUsageFlags::COLOR_ATTACHMENT)
-        .image_format(formats.clone().expect("Failed to get supported formats")[0].format)
-        .image_color_space(formats.clone().expect("Failed to get supported formats")[0].color_space)
+        .image_format(formats.clone()[0].format)
+        .image_color_space(formats.clone()[0].color_space)
         .image_extent(capabilities.min_image_extent)
         .image_array_layers(1)
         .image_sharing_mode(vk::SharingMode::EXCLUSIVE)
@@ -70,7 +70,7 @@ pub fn create_swapchain(
             .layer_count(1);
 
         let view_create_info = vk::ImageViewCreateInfo::builder()
-            .format(formats.clone().expect("Failed to get supported formats")[0].format)
+            .format(formats.clone()[0].format)
             .view_type(vk::ImageViewType::TYPE_2D)
             .subresource_range(*subresource_range)
             .image(image);
@@ -85,5 +85,5 @@ pub fn create_swapchain(
         swapchain_views.push(view);
     }
 
-    SwapchainInfo { swapchain, loader, swapchain_views }
+    SwapchainInfo { swapchain, loader, swapchain_views, extent: capabilities.current_extent, formats }
 }
