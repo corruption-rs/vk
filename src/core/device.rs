@@ -1,10 +1,8 @@
 use ash::vk;
 
-use super::structures::{LogicalDevice, QueueFamily, DeviceInfo};
+use super::structures::{DeviceInfo, LogicalDevice, QueueFamily};
 
-pub fn create_device(
-    instance: &ash::Instance,
-) -> DeviceInfo {
+pub fn create_device(instance: &ash::Instance) -> DeviceInfo {
     let physical_devices = unsafe {
         instance
             .enumerate_physical_devices()
@@ -75,7 +73,12 @@ pub fn create_device(
     }
     .expect("Failed to create device");
 
+    let queue = unsafe { device.get_device_queue(queue_families[0].index, 0) };
+
     DeviceInfo {
-        logical_devices, device, queue_families,
+        logical_devices,
+        device,
+        queue_families,
+        queue,
     }
 }

@@ -1,6 +1,8 @@
-use std::{ffi::CStr, fs};
+use std::ffi::CStr;
 
 use ash::vk;
+
+use crate::io::file;
 
 use super::structures::PipelineInfo;
 
@@ -10,15 +12,11 @@ pub fn create_pipeline(
     extent: &vk::Extent2D,
     formats: &Vec<vk::SurfaceFormatKHR>,
 ) -> PipelineInfo {
-    let vert_module = create_shader_pipeline(
-        device,
-        fs::read(format!("{}_v.spv", shader_name)).expect("Failed to read file"),
-    );
+    let vert_module =
+        create_shader_pipeline(device, file::read_file(&format!("{}_v.spv", shader_name)));
 
-    let frag_module = create_shader_pipeline(
-        device,
-        fs::read(format!("{}_f.spv", shader_name)).expect("Failed to read file"),
-    );
+    let frag_module =
+        create_shader_pipeline(device, file::read_file(&format!("{}_f.spv", shader_name)));
 
     let vertex_pipeline_shader_stage_create_info = vk::PipelineShaderStageCreateInfo::builder()
         .stage(vk::ShaderStageFlags::VERTEX)
@@ -37,10 +35,7 @@ pub fn create_pipeline(
         fragment_pipeline_shader_stage_create_info,
     ];
 
-    let shader_modules = [
-        vert_module,
-        frag_module
-    ];
+    let shader_modules = [vert_module, frag_module];
 
     let pipeline_dynamic_state_create_info = vk::PipelineDynamicStateCreateInfo::builder()
         .dynamic_states(&[vk::DynamicState::VIEWPORT, vk::DynamicState::SCISSOR])
@@ -82,7 +77,7 @@ pub fn create_pipeline(
             .depth_clamp_enable(false) // TODO: change to true after enabling the GPU feature
             .rasterizer_discard_enable(false)
             .polygon_mode(vk::PolygonMode::FILL)
-            .cull_mode(vk::CullModeFlags::FRONT_AND_BACK)
+            .cull_mode(vk::CullModeFlags::BACK)
             .front_face(vk::FrontFace::CLOCKWISE)
             .depth_bias_enable(false)
             .build();
@@ -131,12 +126,22 @@ pub fn create_pipeline(
         .color_attachments(&[attachment_reference])
         .build();
 
-    let render_pass_create_info = vk::RenderPassCreateInfo::builder()
-        .attachments(&[attachment_description])
-        .subpasses(&[subpass_description])
+    let dependency = vk::SubpassDependency::builder()
+        .src_subpass(vk::SUBPASS_EXTERNAL)
+        .dst_subpass(0)
+        .src_stage_mask(vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT)
+        .src_access_mask(vk::AccessFlags::empty())
+        .dst_stage_mask(vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT)
+        .dst_access_mask(vk::AccessFlags::COLOR_ATTACHMENT_WRITE)
         .build();
 
-    let render_pass = unsafe { device.create_render_pass(&render_pass_create_info, None) }
+    let render_pass_info = vk::RenderPassCreateInfo::builder()
+        .attachments(&[attachment_description])
+        .subpasses(&[subpass_description])
+        .dependencies(&[dependency])
+        .build();
+
+    let render_pass = unsafe { device.create_render_pass(&render_pass_info, None) }
         .expect("Failed to create render pass");
 
     let pipeline_create_info = vk::GraphicsPipelineCreateInfo::builder()
@@ -155,11 +160,16 @@ pub fn create_pipeline(
 
     let pipeline = unsafe {
         device.create_graphics_pipelines(vk::PipelineCache::null(), &[pipeline_create_info], None)
-    }.expect("Failed to create pipeline");
+    }
+    .expect("Failed to create pipeline");
 
-    
-
-    PipelineInfo { pipeline, pipeline_layout, render_pass, shader_modules }
+    PipelineInfo {
+        pipeline,
+        pipeline_layout,
+        render_pass,
+        shader_modules,
+        render_pass_info,
+    }
 }
 
 pub fn create_shader_pipeline(device: &ash::Device, code: Vec<u8>) -> vk::ShaderModule {

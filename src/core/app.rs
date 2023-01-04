@@ -8,14 +8,18 @@ use raw_window_handle::HasRawDisplayHandle;
 use crate::core::debug::create_debug;
 
 use crate::core::{
-    device::create_device, pipeline::create_pipeline, surface::create_surface,
-    swapchain::create_swapchain,
+    commands::create_command_pool, device::create_device, framebuffer::create_framebuffers,
+    pipeline::create_pipeline, surface::create_surface, swapchain::create_swapchain,
+    sync::create_sync,
 };
 
 #[cfg(debug_assertions)]
 use super::structures::DebugInfo;
 
-use super::structures::{DeviceInfo, PipelineInfo, SurfaceInfo, SwapchainInfo};
+use super::{
+    commands::record_buffer,
+    structures::{CommandInfo, DeviceInfo, PipelineInfo, SurfaceInfo, SwapchainInfo, SyncInfo},
+};
 
 extern crate env_logger;
 
@@ -33,6 +37,9 @@ pub struct App {
     surface_info: SurfaceInfo,
     swapchain_info: SwapchainInfo,
     pipeline_info: PipelineInfo,
+    framebuffers: Vec<vk::Framebuffer>,
+    command_info: CommandInfo,
+    sync_info: SyncInfo,
 
     #[cfg(debug_assertions)]
     debug_info: DebugInfo,
@@ -64,7 +71,7 @@ impl App {
             .application_version(vk::make_api_version(0, 0, 1, 0))
             .engine_name(unsafe { &CStr::from_ptr(ENGINE_NAME.as_ptr() as *const i8) })
             .engine_version(vk::make_api_version(0, 0, 1, 0))
-            .api_version(vk::make_api_version(0, 1, 0, 0));
+            .api_version(vk::make_api_version(0, 1, 3, 0));
 
         let entry = ash::Entry::linked();
 
@@ -131,6 +138,22 @@ impl App {
             &swapchain_info.formats,
         );
 
+        let framebuffers = create_framebuffers(
+            swapchain_info.clone(),
+            pipeline_info.clone(),
+            &device_info.device,
+        );
+
+        let command_info = create_command_pool(
+            device_info
+                .queue_families
+                .first()
+                .expect("Failed to get queue family"),
+            &device_info.device,
+        );
+
+        let sync_info = create_sync(&device_info.device);
+
         let game = App {
             window,
             instance,
@@ -138,6 +161,9 @@ impl App {
             surface_info,
             swapchain_info,
             pipeline_info,
+            framebuffers,
+            command_info,
+            sync_info,
 
             #[cfg(debug_assertions)]
             debug_info,
@@ -146,7 +172,7 @@ impl App {
         game.run(event_loop);
     }
 
-    fn run(self, event_loop: winit::event_loop::EventLoop<()>) {
+    fn run(mut self, event_loop: winit::event_loop::EventLoop<()>) {
         event_loop.run(move |event, _, control_flow| {
             *control_flow = winit::event_loop::ControlFlow::Wait;
 
@@ -165,12 +191,50 @@ impl App {
                     self.cleanup();
                     *control_flow = winit::event_loop::ControlFlow::Exit;
                 }
-                _ => (),
+
+                winit::event::Event::WindowEvent {
+                    window_id,
+                    event: winit::event::WindowEvent::Resized(_),
+                } if window_id == self.window.id() => {
+                    self.render()
+                }
+
+                winit::event::Event::RedrawRequested(_) => self.render(),
+
+                _ => self.render(),
             }
         });
     }
 
     fn cleanup(&self) {
+        unsafe {
+            self.device_info.device.device_wait_idle()
+        }.expect("Failed to wait for device idle");
+
+        for semaphore in &self.sync_info.semaphores {
+            unsafe { self.device_info.device.destroy_semaphore(*semaphore, None) }
+        }
+
+        unsafe {
+            self.device_info
+                .device
+                .destroy_fence(self.sync_info.frame_fence, None)
+        }
+
+        unsafe {
+            self.device_info
+                .device
+                .destroy_command_pool(self.command_info.command_pool, None)
+        }
+
+        for framebuffer in &self.framebuffers {
+            unsafe {
+                self.device_info
+                    .device
+                    .destroy_framebuffer(*framebuffer, None)
+            }
+        }
+
         for view in &self.swapchain_info.swapchain_views {
             unsafe { self.device_info.device.destroy_image_view(*view, None) }
         }
@@ -238,7 +302,98 @@ impl App {
         }
     }
 
-    fn _render(&self) {
-        todo!()
+    fn render(&mut self) {
+        unsafe {
+            self.device_info.device.wait_for_fences(
+                &[self.sync_info.frame_fence],
+                true,
+                10000000000,
+            )
+        }
+        .expect("Failed to wait for fences");
+
+        unsafe {
+            self.device_info
+                .device
+                .reset_fences(&[self.sync_info.frame_fence])
+        }
+        .expect("Failed reset fences");
+
+        let index = unsafe {
+            self.swapchain_info.loader.acquire_next_image(
+                self.swapchain_info.swapchain,
+                10000000000,
+                *self
+                    .sync_info
+                    .semaphores
+                    .first()
+                    .expect("Failed to get semaphore"),
+                vk::Fence::null(),
+            )
+        }
+        .expect("Failed to acquire next image");
+
+        unsafe {
+            self.device_info.device.reset_command_buffer(
+                self.command_info.command_buffer,
+                vk::CommandBufferResetFlags::empty(),
+            )
+        }
+        .expect("Failed to reset command buffer");
+
+        record_buffer(
+            index
+                .0
+                .try_into()
+                .expect("Failed to convert index to usize from u32"),
+            self.pipeline_info.clone(),
+            self.swapchain_info.clone(),
+            self.framebuffers.clone(),
+            &self.device_info.device,
+            self.command_info.clone(),
+        );
+
+        let wait_semaphore = self
+            .sync_info
+            .semaphores
+            .first()
+            .expect("Failed to get semaphore");
+
+        let signal_semaphore = self
+            .sync_info
+            .semaphores
+            .last()
+            .expect("Failed to get semaphore");
+
+        assert_ne!(signal_semaphore, wait_semaphore);
+
+        let submit_info = vk::SubmitInfo::builder()
+            .wait_semaphores(&[*wait_semaphore])
+            .wait_dst_stage_mask(&[vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT])
+            .command_buffers(&[self.command_info.command_buffer])
+            .signal_semaphores(&[*signal_semaphore])
+            .build();
+
+        unsafe {
+            self.device_info.device.queue_submit(
+                self.device_info.queue,
+                &[submit_info],
+                self.sync_info.frame_fence,
+            )
+        }
+        .expect("Failed to submit queue");
+
+        let present_info = vk::PresentInfoKHR::builder()
+            .wait_semaphores(&[*signal_semaphore])
+            .swapchains(&[self.swapchain_info.swapchain])
+            .image_indices(&[index.0])
+            .build();
+
+        unsafe {
+            self.swapchain_info
+                .loader
+                .queue_present(self.device_info.queue, &present_info)
+        }
+        .expect("Failed to present queue");
     }
 }

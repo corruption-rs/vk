@@ -1,6 +1,11 @@
 use ash::vk;
 
 #[derive(Clone)]
+pub struct CommandInfo {
+    pub command_pool: vk::CommandPool,
+    pub command_buffer: vk::CommandBuffer,
+}
+#[derive(Clone)]
 pub struct DebugInfo {
     pub loader: ash::extensions::ext::DebugUtils,
     pub messenger: vk::DebugUtilsMessengerEXT,
@@ -11,6 +16,7 @@ pub struct DeviceInfo {
     pub logical_devices: Vec<LogicalDevice>,
     pub device: ash::Device,
     pub queue_families: Vec<QueueFamily>,
+    pub queue: vk::Queue,
 }
 
 #[derive(Debug, Clone)]
@@ -25,7 +31,8 @@ pub struct PipelineInfo {
     pub pipeline: Vec<vk::Pipeline>,
     pub pipeline_layout: vk::PipelineLayout,
     pub render_pass: vk::RenderPass,
-    pub shader_modules: [vk::ShaderModule; 2]
+    pub shader_modules: [vk::ShaderModule; 2],
+    pub render_pass_info: vk::RenderPassCreateInfo,
 }
 
 #[derive(Debug, Clone)]
@@ -46,7 +53,13 @@ pub struct SwapchainInfo {
     pub swapchain: vk::SwapchainKHR,
     pub swapchain_views: Vec<vk::ImageView>,
     pub formats: Vec<vk::SurfaceFormatKHR>,
-    pub extent: vk::Extent2D
+    pub extent: vk::Extent2D,
+}
+
+#[derive(Clone)]
+pub struct SyncInfo {
+    pub semaphores: Vec<vk::Semaphore>,
+    pub frame_fence: vk::Fence,
 }
 
 impl std::fmt::Display for LogicalDevice {
