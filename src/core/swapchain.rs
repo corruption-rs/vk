@@ -24,7 +24,8 @@ pub fn create_swapchain(
                 device_info.logical_devices[0].physical_device,
                 surface_info.surface,
             )
-    }.expect("Failed to get device formats");
+    }
+    .expect("Failed to get device formats");
 
     let indices: Vec<u32> = device_info
         .queue_families
@@ -36,16 +37,13 @@ pub fn create_swapchain(
         .surface(surface_info.surface)
         .pre_transform(capabilities.current_transform)
         .image_usage(vk::ImageUsageFlags::COLOR_ATTACHMENT)
-        .image_format(formats.clone()[0].format)
+        .image_format(vk::Format::B8G8R8A8_SRGB)
         .image_color_space(formats.clone()[0].color_space)
         .image_extent(capabilities.min_image_extent)
         .image_array_layers(1)
         .image_sharing_mode(vk::SharingMode::EXCLUSIVE)
         .composite_alpha(CompositeAlphaFlagsKHR::OPAQUE)
-        .min_image_count(
-            2.max(capabilities.min_image_count + 1)
-                .min(capabilities.max_image_count),
-        )
+        .min_image_count(capabilities.min_image_count)
         .clipped(true)
         .queue_family_indices(&indices)
         .present_mode(vk::PresentModeKHR::FIFO);
@@ -70,7 +68,7 @@ pub fn create_swapchain(
             .layer_count(1);
 
         let view_create_info = vk::ImageViewCreateInfo::builder()
-            .format(formats.clone()[0].format)
+            .format(vk::Format::B8G8R8A8_SRGB)
             .view_type(vk::ImageViewType::TYPE_2D)
             .subresource_range(*subresource_range)
             .image(image);
@@ -85,5 +83,11 @@ pub fn create_swapchain(
         swapchain_views.push(view);
     }
 
-    SwapchainInfo { swapchain, loader, swapchain_views, extent: capabilities.current_extent, formats }
+    SwapchainInfo {
+        swapchain,
+        loader,
+        swapchain_views,
+        extent: capabilities.current_extent,
+        formats,
+    }
 }

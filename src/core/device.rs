@@ -53,10 +53,9 @@ pub fn create_device(instance: &ash::Instance) -> DeviceInfo {
     let queue_create_info = vk::DeviceQueueCreateInfo::builder()
         .flags(vk::DeviceQueueCreateFlags::empty())
         .queue_family_index(queue_families[0].index)
-        .queue_priorities(&queue_families[0].priorities)
-        .build();
+        .queue_priorities(&queue_families[0].priorities);
 
-    let queue_create_infos = vec![queue_create_info];
+    let queue_create_infos = [*queue_create_info];
 
     let device_create_info = vk::DeviceCreateInfo::builder()
         .enabled_extension_names(&device_extensions)

@@ -10,7 +10,6 @@ pub fn create_pipeline(
     device: &ash::Device,
     shader_name: &str,
     extent: &vk::Extent2D,
-    formats: &Vec<vk::SurfaceFormatKHR>,
 ) -> PipelineInfo {
     let vert_module =
         create_shader_pipeline(device, file::read_file(&format!("{}_v.spv", shader_name)));
@@ -38,17 +37,14 @@ pub fn create_pipeline(
     let shader_modules = [vert_module, frag_module];
 
     let pipeline_dynamic_state_create_info = vk::PipelineDynamicStateCreateInfo::builder()
-        .dynamic_states(&[vk::DynamicState::VIEWPORT, vk::DynamicState::SCISSOR])
-        .build();
+        .dynamic_states(&[vk::DynamicState::VIEWPORT, vk::DynamicState::SCISSOR]);
 
-    let pipeline_vertex_input_state_create_info =
-        vk::PipelineVertexInputStateCreateInfo::builder().build();
+    let pipeline_vertex_input_state_create_info = vk::PipelineVertexInputStateCreateInfo::builder();
 
     let pipeline_input_assembly_state_create_info =
         vk::PipelineInputAssemblyStateCreateInfo::builder()
             .topology(vk::PrimitiveTopology::TRIANGLE_LIST)
-            .primitive_restart_enable(false)
-            .build();
+            .primitive_restart_enable(false);
 
     let viewport = vk::Viewport::builder()
         .x(0.0)
@@ -56,20 +52,20 @@ pub fn create_pipeline(
         .width(extent.width as f32)
         .height(extent.height as f32)
         .min_depth(0.0)
-        .max_depth(1.0)
-        .build();
+        .max_depth(1.0);
 
     let scissor = vk::Rect2D::builder()
-        .offset(vk::Offset2D::builder().x(0).y(0).build())
-        .extent(extent.clone())
-        .build();
+        .offset(*vk::Offset2D::builder().x(0).y(0))
+        .extent(extent.clone());
+
+    let scissors = [*scissor];
+    let viewports = [*viewport];
 
     let pipeline_viewport_state_create_info = vk::PipelineViewportStateCreateInfo::builder()
         .viewport_count(1)
-        .viewports(&[viewport])
+        .viewports(&viewports)
         .scissor_count(1)
-        .scissors(&[scissor])
-        .build();
+        .scissors(&scissors);
 
     let pipeline_rasterization_state_create_info =
         vk::PipelineRasterizationStateCreateInfo::builder()
@@ -79,15 +75,13 @@ pub fn create_pipeline(
             .polygon_mode(vk::PolygonMode::FILL)
             .cull_mode(vk::CullModeFlags::BACK)
             .front_face(vk::FrontFace::CLOCKWISE)
-            .depth_bias_enable(false)
-            .build();
+            .depth_bias_enable(false);
 
     let pipeline_multisample_state_create_info = vk::PipelineMultisampleStateCreateInfo::builder()
         .sample_shading_enable(false)
-        .rasterization_samples(vk::SampleCountFlags::TYPE_1)
-        .build();
+        .rasterization_samples(vk::SampleCountFlags::TYPE_1);
 
-    let pipeline_color_blend_attachement_state = vk::PipelineColorBlendAttachmentState::builder()
+    let pipeline_color_blend_attachment_state = vk::PipelineColorBlendAttachmentState::builder()
         .color_write_mask(vk::ColorComponentFlags::RGBA)
         .blend_enable(true)
         .src_color_blend_factor(vk::BlendFactor::SRC_ALPHA)
@@ -95,36 +89,32 @@ pub fn create_pipeline(
         .color_blend_op(vk::BlendOp::ADD)
         .src_alpha_blend_factor(vk::BlendFactor::ONE)
         .dst_alpha_blend_factor(vk::BlendFactor::ZERO)
-        .alpha_blend_op(vk::BlendOp::ADD)
-        .build();
+        .alpha_blend_op(vk::BlendOp::ADD);
 
+    let attachments = [*pipeline_color_blend_attachment_state];
     let pipeline_color_blend_state_create_info = vk::PipelineColorBlendStateCreateInfo::builder()
         .logic_op_enable(false)
-        .attachments(&[pipeline_color_blend_attachement_state])
-        .build();
+        .attachments(&attachments);
 
-    let pipeline_layout_create_info = vk::PipelineLayoutCreateInfo::builder().build();
+    let pipeline_layout_create_info = vk::PipelineLayoutCreateInfo::builder();
 
     let pipeline_layout =
         unsafe { device.create_pipeline_layout(&pipeline_layout_create_info, None) }
             .expect("Failed to create pipeline layout");
 
     let attachment_description = vk::AttachmentDescription::builder()
-        .format(formats[0].format)
+        .format(vk::Format::B8G8R8A8_SRGB)
         .samples(vk::SampleCountFlags::TYPE_1)
         .load_op(vk::AttachmentLoadOp::CLEAR)
         .store_op(vk::AttachmentStoreOp::STORE)
-        .final_layout(vk::ImageLayout::PRESENT_SRC_KHR)
-        .build();
+        .final_layout(vk::ImageLayout::PRESENT_SRC_KHR);
 
     let attachment_reference = vk::AttachmentReference::builder()
         .attachment(0)
-        .layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
-        .build();
+        .layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL);
 
-    let subpass_description = vk::SubpassDescription::builder()
-        .color_attachments(&[attachment_reference])
-        .build();
+    let color_attachments = [*attachment_reference];
+    let subpass_description = vk::SubpassDescription::builder().color_attachments(&color_attachments);
 
     let dependency = vk::SubpassDependency::builder()
         .src_subpass(vk::SUBPASS_EXTERNAL)
@@ -132,14 +122,15 @@ pub fn create_pipeline(
         .src_stage_mask(vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT)
         .src_access_mask(vk::AccessFlags::empty())
         .dst_stage_mask(vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT)
-        .dst_access_mask(vk::AccessFlags::COLOR_ATTACHMENT_WRITE)
-        .build();
+        .dst_access_mask(vk::AccessFlags::COLOR_ATTACHMENT_WRITE);
 
+    let subpass_descriptions = [*subpass_description];
+    let attachments = [*attachment_description];
+    let dependencies = [*dependency];
     let render_pass_info = vk::RenderPassCreateInfo::builder()
-        .attachments(&[attachment_description])
-        .subpasses(&[subpass_description])
-        .dependencies(&[dependency])
-        .build();
+        .attachments(&attachments)
+        .subpasses(&subpass_descriptions)
+        .dependencies(&dependencies);
 
     let render_pass = unsafe { device.create_render_pass(&render_pass_info, None) }
         .expect("Failed to create render pass");
@@ -155,11 +146,10 @@ pub fn create_pipeline(
         .dynamic_state(&pipeline_dynamic_state_create_info)
         .layout(pipeline_layout)
         .render_pass(render_pass)
-        .subpass(0)
-        .build();
+        .subpass(0);
 
     let pipeline = unsafe {
-        device.create_graphics_pipelines(vk::PipelineCache::null(), &[pipeline_create_info], None)
+        device.create_graphics_pipelines(vk::PipelineCache::null(), &[*pipeline_create_info], None)
     }
     .expect("Failed to create pipeline");
 
@@ -168,14 +158,13 @@ pub fn create_pipeline(
         pipeline_layout,
         render_pass,
         shader_modules,
-        render_pass_info,
+        render_pass_info: *render_pass_info,
     }
 }
 
 pub fn create_shader_pipeline(device: &ash::Device, code: Vec<u8>) -> vk::ShaderModule {
-    let shader_module_create_info = vk::ShaderModuleCreateInfo::builder()
-        .code(unsafe { code.align_to::<u32>().1 })
-        .build();
+    let shader_module_create_info =
+        vk::ShaderModuleCreateInfo::builder().code(unsafe { code.align_to::<u32>().1 });
     unsafe { device.create_shader_module(&shader_module_create_info, None) }
         .expect("Failed to create shader module")
 }

@@ -3,7 +3,7 @@ use ash::vk;
 #[derive(Clone)]
 pub struct CommandInfo {
     pub command_pool: vk::CommandPool,
-    pub command_buffer: vk::CommandBuffer,
+    pub command_buffers: Vec<vk::CommandBuffer>,
 }
 #[derive(Clone)]
 pub struct DebugInfo {
@@ -58,8 +58,9 @@ pub struct SwapchainInfo {
 
 #[derive(Clone)]
 pub struct SyncInfo {
-    pub semaphores: Vec<vk::Semaphore>,
-    pub frame_fence: vk::Fence,
+    pub render_semaphores: Vec<vk::Semaphore>,
+    pub image_semaphores: Vec<vk::Semaphore>,
+    pub frame_fences: Vec<vk::Fence>,
 }
 
 impl std::fmt::Display for LogicalDevice {

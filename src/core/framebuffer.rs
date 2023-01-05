@@ -10,14 +10,13 @@ pub fn create_framebuffers(
     let mut framebuffers = Vec::<vk::Framebuffer>::new();
     framebuffers.reserve(swapchain_info.swapchain_views.len());
     for view in &swapchain_info.swapchain_views {
-        let attachments: vk::ImageView = *view;
+        let attachments = [*view];
         let framebuffer_info = vk::FramebufferCreateInfo::builder()
             .render_pass(pipeline_info.render_pass)
-            .attachments(&[attachments])
+            .attachments(&attachments)
             .width(swapchain_info.extent.width)
             .height(swapchain_info.extent.height)
-            .layers(1)
-            .build();
+            .layers(1);
 
         let framebuffer = unsafe { device.create_framebuffer(&framebuffer_info, None) }
             .expect("Failed to create framebuffer");
