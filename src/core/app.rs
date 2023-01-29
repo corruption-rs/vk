@@ -2,10 +2,13 @@ use std::{ffi::CStr, i8};
 
 use ash::vk;
 
+use gpu_allocator::vulkan;
 use raw_window_handle::HasRawDisplayHandle;
 
+use crate::core::buffers::create_vertex_buffer;
 use crate::core::debug::create_debug;
 
+use crate::core::geometry::TRI;
 use crate::core::{
     commands::create_command_pool, device::create_device, framebuffer::create_framebuffers,
     pipeline::create_pipeline, surface::create_surface, swapchain::create_swapchain,
@@ -43,6 +46,9 @@ pub struct App {
     is_exiting: bool,
     current_frame: usize,
     debug_info: DebugInfo,
+    allocator: Option<vulkan::Allocator>,
+    vertex_buffer: vk::Buffer,
+    allocation: Option<vulkan::Allocation>,
 }
 
 impl App {
@@ -126,6 +132,19 @@ impl App {
 
         let device_info = create_device(&instance);
 
+        let mut allocator = vulkan::Allocator::new(&vulkan::AllocatorCreateDesc {
+            instance: instance.clone(),
+            device: device_info.clone().device,
+            physical_device: device_info
+                .logical_devices
+                .first()
+                .expect("Failed to get first logical device")
+                .physical_device,
+            debug_settings: Default::default(),
+            buffer_device_address: false,
+        })
+        .expect("Failed to create allocator");
+
         let surface_info = create_surface(&window, &entry, &instance);
 
         let swapchain_info = create_swapchain(device_info.clone(), surface_info.clone(), &instance);
@@ -141,6 +160,9 @@ impl App {
             pipeline_info.clone(),
             &device_info.device,
         );
+
+        let (vertex_buffer, allocation) =
+            create_vertex_buffer(TRI.as_slice().to_vec(), &device_info.device, &mut allocator);
 
         let command_info = create_command_pool(
             device_info
@@ -164,8 +186,10 @@ impl App {
             sync_info,
             is_exiting: false,
             current_frame: 0,
-
+            allocator: Some(allocator),
+            vertex_buffer,
             debug_info,
+            allocation: Some(allocation),
         };
 
         game.run(event_loop);
@@ -218,6 +242,16 @@ impl App {
                 .queue_wait_idle(self.device_info.queue)
         }
         .expect("Failed to wait for queue idle");
+
+        self.allocator.take().expect("Failed to get allocator")
+            .free(self.allocation.take().expect("Failed to get allocation"))
+            .expect("Failed to free allocation");
+
+        unsafe {
+            self.device_info
+                .device
+                .destroy_buffer(self.vertex_buffer, None)
+        };
 
         for semaphore in &self.sync_info.render_semaphores {
             unsafe { self.device_info.device.destroy_semaphore(*semaphore, None) }
@@ -401,6 +435,8 @@ impl App {
             self.framebuffers.clone(),
             &self.device_info.device,
             self.command_info.command_buffers[self.current_frame],
+            &self.vertex_buffer,
+            TRI.len(),
         );
 
         let signal_semaphores = [self.sync_info.render_semaphores[self.current_frame]];

@@ -4,7 +4,7 @@ use ash::vk;
 
 use crate::io::file;
 
-use super::structures::PipelineInfo;
+use super::{structures::PipelineInfo, vertex::Vertex};
 
 pub fn create_pipeline(
     device: &ash::Device,
@@ -39,7 +39,12 @@ pub fn create_pipeline(
     let pipeline_dynamic_state_create_info = vk::PipelineDynamicStateCreateInfo::builder()
         .dynamic_states(&[vk::DynamicState::VIEWPORT, vk::DynamicState::SCISSOR]);
 
-    let pipeline_vertex_input_state_create_info = vk::PipelineVertexInputStateCreateInfo::builder();
+    let (binding_description, attribute_descriptions) = Vertex::get_descriptions();
+
+    let descriptions = [binding_description];
+    let pipeline_vertex_input_state_create_info = vk::PipelineVertexInputStateCreateInfo::builder()
+        .vertex_attribute_descriptions(&attribute_descriptions)
+        .vertex_binding_descriptions(&descriptions);
 
     let pipeline_input_assembly_state_create_info =
         vk::PipelineInputAssemblyStateCreateInfo::builder()
@@ -49,8 +54,8 @@ pub fn create_pipeline(
     let viewport = vk::Viewport::builder()
         .x(0.0)
         .y(0.0)
-        .width(extent.width as f32)
         .height(extent.height as f32)
+        .width(extent.width as f32)
         .min_depth(0.0)
         .max_depth(1.0);
 
@@ -114,7 +119,8 @@ pub fn create_pipeline(
         .layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL);
 
     let color_attachments = [*attachment_reference];
-    let subpass_description = vk::SubpassDescription::builder().color_attachments(&color_attachments);
+    let subpass_description =
+        vk::SubpassDescription::builder().color_attachments(&color_attachments);
 
     let dependency = vk::SubpassDependency::builder()
         .src_subpass(vk::SUBPASS_EXTERNAL)
