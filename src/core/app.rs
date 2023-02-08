@@ -225,6 +225,13 @@ impl App {
                     self.window.request_redraw();
                 }
 
+                winit::event::Event::WindowEvent {
+                    window_id,
+                    event: winit::event::WindowEvent::Resized(_),
+                } if window_id == self.window.id() => {
+                    self.resize()
+                }
+
                 _ => (),
             }
         });
@@ -347,6 +354,38 @@ impl App {
         }
     }
 
+    fn resize(&mut self) {
+        unsafe {
+            self.swapchain_info
+                .loader
+                .destroy_swapchain(self.swapchain_info.swapchain, None)
+        };
+
+        for view in &self.swapchain_info.swapchain_views {
+            unsafe { self.device_info.device.destroy_image_view(*view, None) }
+        }
+
+        self.swapchain_info = create_swapchain(
+            self.device_info.clone(),
+            self.surface_info.clone(),
+            &self.instance,
+        );
+
+        for framebuffer in &self.framebuffers {
+            unsafe {
+                self.device_info
+                    .device
+                    .destroy_framebuffer(*framebuffer, None)
+            }
+        }
+        
+        self.framebuffers = create_framebuffers(
+            self.swapchain_info.clone(),
+            self.pipeline_info.clone(),
+            &self.device_info.device,
+        );
+    }
+
     fn render(&mut self) {
         if self.is_exiting {
             return;
@@ -356,7 +395,7 @@ impl App {
             self.device_info.device.wait_for_fences(
                 &[self.sync_info.frame_fences[self.current_frame]],
                 true,
-                u64::MAX,
+                5000000000,
             )
         }
         .expect("Failed to wait for fences");
@@ -364,52 +403,21 @@ impl App {
         let result = unsafe {
             self.swapchain_info.loader.acquire_next_image(
                 self.swapchain_info.swapchain,
-                u64::MAX,
+                5000000000,
                 self.sync_info.image_semaphores[self.current_frame],
                 vk::Fence::null(),
             )
         };
 
-        let index = match result {
-            Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => {
-                unsafe {
-                    self.swapchain_info
-                        .loader
-                        .destroy_swapchain(self.swapchain_info.swapchain, None)
-                };
-
-                for view in &self.swapchain_info.swapchain_views {
-                    unsafe { self.device_info.device.destroy_image_view(*view, None) }
-                }
-
-                self.swapchain_info = create_swapchain(
-                    self.device_info.clone(),
-                    self.surface_info.clone(),
-                    &self.instance,
-                );
-
-                for framebuffer in &self.framebuffers {
-                    unsafe {
-                        self.device_info
-                            .device
-                            .destroy_framebuffer(*framebuffer, None)
-                    }
-                }
-
-                self.framebuffers = create_framebuffers(
-                    self.swapchain_info.clone(),
-                    self.pipeline_info.clone(),
-                    &self.device_info.device,
-                );
-                2
-            }
-            Ok(index) => index.0,
-            Err(e) => panic!("Failed to acquire next image {}", e),
-        };
-
-        if index == 2 {
+        if result.err() == Some(vk::Result::ERROR_OUT_OF_DATE_KHR) {
+            self.resize();
             return;
         }
+
+        let index = match result {
+            Ok(index) => index.0,
+            Err(_) => panic!("Failed to acquire next image")
+        };
 
         unsafe {
             self.device_info
@@ -472,41 +480,10 @@ impl App {
                 .queue_present(self.device_info.queue, &present_info)
         };
 
-        match result {
-            Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => {
-                unsafe {
-                    self.swapchain_info
-                        .loader
-                        .destroy_swapchain(self.swapchain_info.swapchain, None)
-                };
-
-                for view in &self.swapchain_info.swapchain_views {
-                    unsafe { self.device_info.device.destroy_image_view(*view, None) }
-                }
-
-                self.swapchain_info = create_swapchain(
-                    self.device_info.clone(),
-                    self.surface_info.clone(),
-                    &self.instance,
-                );
-
-                for framebuffer in &self.framebuffers {
-                    unsafe {
-                        self.device_info
-                            .device
-                            .destroy_framebuffer(*framebuffer, None)
-                    }
-                }
-
-                self.framebuffers = create_framebuffers(
-                    self.swapchain_info.clone(),
-                    self.pipeline_info.clone(),
-                    &self.device_info.device,
-                )
-            }
-            Ok(_) => (),
-            Err(e) => panic!("Failed to present queue {}", e),
-        };
+        if result.err() == Some(vk::Result::ERROR_OUT_OF_DATE_KHR) {
+            self.resize();
+            return;
+        }
 
         self.current_frame = (self.current_frame + 1 as usize) % MAX_CONCURRENT_FRAMES as usize;
     }

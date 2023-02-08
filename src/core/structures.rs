@@ -23,7 +23,7 @@ pub struct DeviceInfo {
 pub struct LogicalDevice {
     pub physical_device: vk::PhysicalDevice,
     pub properties: vk::PhysicalDeviceProperties,
-    pub priority: u8,
+    pub priority: u64,
 }
 
 #[derive(Clone)]

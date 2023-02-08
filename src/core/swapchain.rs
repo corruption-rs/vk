@@ -7,6 +7,8 @@ pub fn create_swapchain(
     surface_info: SurfaceInfo,
     instance: &ash::Instance,
 ) -> SwapchainInfo {
+    unsafe { device_info.device.device_wait_idle() }.expect("Failed to wait for device idle");
+
     let capabilities = unsafe {
         surface_info
             .surface_loader

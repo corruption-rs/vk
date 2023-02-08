@@ -18,15 +18,16 @@ pub fn create_device(instance: &ash::Instance) -> DeviceInfo {
         let mut i = 0;
         for family in families.iter() {
             if family.queue_flags.contains(vk::QueueFlags::GRAPHICS) {
-                let priority = match properties.device_type {
-                    vk::PhysicalDeviceType::DISCRETE_GPU => 3,
-                    vk::PhysicalDeviceType::INTEGRATED_GPU => 2,
-                    vk::PhysicalDeviceType::VIRTUAL_GPU => 1,
-                    _ => 0,
+                let mut priority = match properties.device_type {
+                    vk::PhysicalDeviceType::DISCRETE_GPU => 4,
+                    vk::PhysicalDeviceType::INTEGRATED_GPU => 3,
+                    vk::PhysicalDeviceType::VIRTUAL_GPU => 2,
+                    _ => 1,
                 };
+                priority *= properties.limits.max_image_dimension1_d;
                 logical_devices.push(LogicalDevice {
                     physical_device,
-                    priority,
+                    priority: priority.into(),
                     properties,
                 });
                 index = Some(i);
