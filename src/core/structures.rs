@@ -50,7 +50,7 @@ pub struct SurfaceInfo {
 #[derive(Clone)]
 pub struct SwapchainInfo {
     pub loader: ash::extensions::khr::Swapchain,
-    pub swapchain: vk::SwapchainKHR,
+    pub swapchains: Vec<vk::SwapchainKHR>,
     pub swapchain_views: Vec<vk::ImageView>,
     pub formats: Vec<vk::SurfaceFormatKHR>,
     pub extent: vk::Extent2D,

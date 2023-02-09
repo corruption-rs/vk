@@ -6,6 +6,7 @@ pub fn create_swapchain(
     device_info: DeviceInfo,
     surface_info: SurfaceInfo,
     instance: &ash::Instance,
+    swapchains: Option<Vec<vk::SwapchainKHR>>
 ) -> SwapchainInfo {
     unsafe { device_info.device.device_wait_idle() }.expect("Failed to wait for device idle");
 
@@ -35,6 +36,15 @@ pub fn create_swapchain(
         .map(|k| k.index)
         .collect();
 
+    let _old_swapchain = vk::SwapchainKHR::null();
+    let mut _swapchains = vec![vk::SwapchainKHR::null()];
+    let _old_swapchain = if swapchains.is_some() && swapchains.clone().unwrap().last().unwrap() != &vk::SwapchainKHR::null() {
+        _swapchains = swapchains.clone().expect("Failed to get old swapchain");
+        *_swapchains.last().expect("Failed to get old swapchain")
+    } else {
+        vk::SwapchainKHR::null()
+    };
+
     let swapchain_create_info = vk::SwapchainCreateInfoKHR::builder()
         .surface(surface_info.surface)
         .pre_transform(capabilities.current_transform)
@@ -48,6 +58,7 @@ pub fn create_swapchain(
         .min_image_count(capabilities.min_image_count)
         .clipped(true)
         .queue_family_indices(&indices)
+        .old_swapchain(_old_swapchain)
         .present_mode(vk::PresentModeKHR::FIFO);
 
     let loader = ash::extensions::khr::Swapchain::new(&instance, &device_info.device);
@@ -85,8 +96,10 @@ pub fn create_swapchain(
         swapchain_views.push(view);
     }
 
+    _swapchains.push(swapchain);
+
     SwapchainInfo {
-        swapchain,
+        swapchains: _swapchains.to_vec(),
         loader,
         swapchain_views,
         extent: capabilities.current_extent,

@@ -147,7 +147,8 @@ impl App {
 
         let surface_info = create_surface(&window, &entry, &instance);
 
-        let swapchain_info = create_swapchain(device_info.clone(), surface_info.clone(), &instance);
+        let swapchain_info =
+            create_swapchain(device_info.clone(), surface_info.clone(), &instance, None);
 
         let pipeline_info = create_pipeline(
             &device_info.device,
@@ -228,9 +229,7 @@ impl App {
                 winit::event::Event::WindowEvent {
                     window_id,
                     event: winit::event::WindowEvent::Resized(_),
-                } if window_id == self.window.id() => {
-                    self.resize()
-                }
+                } if window_id == self.window.id() => self.resize(),
 
                 _ => (),
             }
@@ -250,7 +249,9 @@ impl App {
         }
         .expect("Failed to wait for queue idle");
 
-        self.allocator.take().expect("Failed to get allocator")
+        self.allocator
+            .take()
+            .expect("Failed to get allocator")
             .free(self.allocation.take().expect("Failed to get allocation"))
             .expect("Failed to free allocation");
 
@@ -321,11 +322,13 @@ impl App {
             )
         }
 
-        unsafe {
-            self.swapchain_info
-                .loader
-                .destroy_swapchain(self.swapchain_info.swapchain, None)
-        };
+        for swapchain in &self.swapchain_info.swapchains {
+            unsafe {
+                self.swapchain_info
+                    .loader
+                    .destroy_swapchain(*swapchain, None)
+            };
+        }
 
         unsafe {
             self.surface_info
@@ -355,20 +358,15 @@ impl App {
     }
 
     fn resize(&mut self) {
-        unsafe {
-            self.swapchain_info
-                .loader
-                .destroy_swapchain(self.swapchain_info.swapchain, None)
-        };
-
+        unsafe { self.device_info.device.device_wait_idle() }.expect("Failed to wait for idle");
         for view in &self.swapchain_info.swapchain_views {
             unsafe { self.device_info.device.destroy_image_view(*view, None) }
         }
-
         self.swapchain_info = create_swapchain(
             self.device_info.clone(),
             self.surface_info.clone(),
             &self.instance,
+            Some(self.swapchain_info.swapchains.clone()),
         );
 
         for framebuffer in &self.framebuffers {
@@ -378,7 +376,7 @@ impl App {
                     .destroy_framebuffer(*framebuffer, None)
             }
         }
-        
+
         self.framebuffers = create_framebuffers(
             self.swapchain_info.clone(),
             self.pipeline_info.clone(),
@@ -395,15 +393,19 @@ impl App {
             self.device_info.device.wait_for_fences(
                 &[self.sync_info.frame_fences[self.current_frame]],
                 true,
-                5000000000,
+                500000000,
             )
         }
         .expect("Failed to wait for fences");
 
         let result = unsafe {
             self.swapchain_info.loader.acquire_next_image(
-                self.swapchain_info.swapchain,
-                5000000000,
+                *self
+                    .swapchain_info
+                    .swapchains
+                    .last()
+                    .expect("Failed to get last swapchain"),
+                500000000,
                 self.sync_info.image_semaphores[self.current_frame],
                 vk::Fence::null(),
             )
@@ -416,7 +418,7 @@ impl App {
 
         let index = match result {
             Ok(index) => index.0,
-            Err(_) => panic!("Failed to acquire next image")
+            Err(_) => panic!("Failed to acquire next image"),
         };
 
         unsafe {
@@ -466,7 +468,11 @@ impl App {
         }
         .expect("Failed to submit queue");
 
-        let swapchains = [self.swapchain_info.swapchain];
+        let swapchains = [*self
+            .swapchain_info
+            .swapchains
+            .last()
+            .expect("Failed to get last swapchain")];
         let indices = [index];
 
         let present_info = vk::PresentInfoKHR::builder()
