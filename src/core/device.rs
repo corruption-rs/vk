@@ -37,7 +37,7 @@ pub fn create_device(instance: &ash::Instance) -> DeviceInfo {
     }
 
     if logical_devices.len() == 0 {
-        panic!("No devices that support Vulkan were found.");
+        panic!("No devices that support Vulkan were found");
     }
 
     for graphics_device in &logical_devices {
@@ -48,7 +48,7 @@ pub fn create_device(instance: &ash::Instance) -> DeviceInfo {
 
     let queue_families = vec![QueueFamily {
         priorities: Box::new([1.0]),
-        index: index.expect("There are no Vulkan capable devices on your system, but you were somehow able to get here.")
+        index: index.expect("No devices that support Vulkan were found")
     }];
 
     let queue_create_info = vk::DeviceQueueCreateInfo::builder()

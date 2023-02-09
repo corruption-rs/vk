@@ -29,6 +29,7 @@ const ENGINE_NAME: &'static str = "VKCR Renderer\0";
 
 const API_DUMP: &'static str = "VK_LAYER_LUNARG_api_dump\0";
 const RENDERDOC_CAPTURE: &'static str = "VK_LAYER_RENDERDOC_Capture\0";
+
 const VALIDATION: &'static str = "VK_LAYER_KHRONOS_validation\0";
 
 pub const MAX_CONCURRENT_FRAMES: u8 = 2;
@@ -77,7 +78,7 @@ impl App {
             .application_version(vk::make_api_version(0, 0, 1, 0))
             .engine_name(unsafe { &CStr::from_ptr(ENGINE_NAME.as_ptr() as *const i8) })
             .engine_version(vk::make_api_version(0, 0, 1, 0))
-            .api_version(vk::make_api_version(0, 1, 3, 0));
+            .api_version(vk::make_api_version(0, 1, 3, 239));
 
         let entry = ash::Entry::linked();
 
