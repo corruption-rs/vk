@@ -10,15 +10,11 @@ unsafe extern "system" fn debug_callback(
 ) -> vk::Bool32 {
     {
         let _message = std::ffi::CStr::from_ptr((*_p_callback_data).p_message);
-        let _name = std::ffi::CStr::from_ptr((*_p_callback_data).p_message_id_name);
 
         println!(
-            "[{:?}] [{:?}] {} {}",
+            "[{:?}] [{:?}] {}",
             _message_severity,
             _message_type,
-            _name
-            .to_str()
-            .expect("Failed to convert message from CStr to str"),
             _message
                 .to_str()
                 .expect("Failed to convert message from CStr to str")

@@ -37,7 +37,8 @@ pub fn record_buffer(
     device: &ash::Device,
     command_buffer: vk::CommandBuffer,
     vertex_buffer: &vk::Buffer,
-    vertices: usize,
+    index_buffer: &vk::Buffer,
+    index_count: u32,
 ) {
     let buffer_begin_info = vk::CommandBufferBeginInfo::builder();
     unsafe { device.begin_command_buffer(command_buffer, &buffer_begin_info) }
@@ -89,10 +90,11 @@ pub fn record_buffer(
     };
 
     unsafe { device.cmd_bind_vertex_buffers(command_buffer, 0, &[*vertex_buffer], &[0]) }
+    unsafe { device.cmd_bind_index_buffer(command_buffer, *index_buffer, 0, vk::IndexType::UINT16) }
 
     unsafe { device.cmd_set_viewport(command_buffer, 0, &[*viewport]) }
     unsafe { device.cmd_set_scissor(command_buffer, 0, &[*scissor]) };
-    unsafe { device.cmd_draw(command_buffer, vertices as u32, 1, 0, 0) };
+    unsafe { device.cmd_draw_indexed(command_buffer, index_count, 1, 0, 0, 0) };
 
     unsafe { device.cmd_end_render_pass(command_buffer) };
 

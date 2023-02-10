@@ -5,10 +5,11 @@ use ash::vk;
 use gpu_allocator::vulkan;
 use raw_window_handle::HasRawDisplayHandle;
 
-use crate::core::buffers::create_vertex_buffer;
+use crate::core::buffers::{create_index_buffer, create_vertex_buffer};
 use crate::core::debug::create_debug;
 
-use crate::core::geometry::TRI;
+use crate::core::geometry::{QUAD_INDICES, QUAD_VERTICES};
+
 use crate::core::{
     commands::create_command_pool, device::create_device, framebuffer::create_framebuffers,
     pipeline::create_pipeline, surface::create_surface, swapchain::create_swapchain,
@@ -49,7 +50,8 @@ pub struct App {
     debug_info: DebugInfo,
     allocator: Option<vulkan::Allocator>,
     vertex_buffer: vk::Buffer,
-    allocation: Option<vulkan::Allocation>,
+    index_buffer: vk::Buffer,
+    allocations: Option<Vec<vulkan::Allocation>>,
 }
 
 impl App {
@@ -163,9 +165,6 @@ impl App {
             &device_info.device,
         );
 
-        let (vertex_buffer, allocation) =
-            create_vertex_buffer(TRI.as_slice().to_vec(), &device_info.device, &mut allocator);
-
         let command_info = create_command_pool(
             device_info
                 .queue_families
@@ -173,6 +172,28 @@ impl App {
                 .expect("Failed to get queue family"),
             &device_info.device,
         );
+
+        let mut allocations = Vec::new();
+
+        let (vertex_buffer, vertex_allocation) = create_vertex_buffer(
+            QUAD_VERTICES.as_slice().to_vec(),
+            &mut allocator,
+            &device_info.device,
+            command_info.command_pool,
+            device_info.queue,
+        );
+
+        allocations.push(vertex_allocation);
+
+        let (index_buffer, index_allocation) = create_index_buffer(
+            QUAD_INDICES.to_vec(),
+            &mut allocator,
+            &device_info.device,
+            command_info.command_pool,
+            device_info.queue,
+        );
+
+        allocations.push(index_allocation);
 
         let sync_info = create_sync(&device_info.device);
 
@@ -190,8 +211,9 @@ impl App {
             current_frame: 0,
             allocator: Some(allocator),
             vertex_buffer,
+            index_buffer,
             debug_info,
-            allocation: Some(allocation),
+            allocations: Some(allocations),
         };
 
         game.run(event_loop);
@@ -250,16 +272,26 @@ impl App {
         }
         .expect("Failed to wait for queue idle");
 
-        self.allocator
-            .take()
-            .expect("Failed to get allocator")
-            .free(self.allocation.take().expect("Failed to get allocation"))
-            .expect("Failed to free allocation");
+        {
+            let mut allocator = self.allocator.take().expect("Failed to get allocator");
 
+            for allocation in self.allocations.take().expect("Failed to get allocation") {
+                allocator
+                    .free(allocation)
+                    .expect("Failed to free allocation");
+            }
+        }
+        
         unsafe {
             self.device_info
                 .device
                 .destroy_buffer(self.vertex_buffer, None)
+        };
+
+        unsafe {
+            self.device_info
+                .device
+                .destroy_buffer(self.index_buffer, None)
         };
 
         for semaphore in &self.sync_info.render_semaphores {
@@ -447,7 +479,11 @@ impl App {
             &self.device_info.device,
             self.command_info.command_buffers[self.current_frame],
             &self.vertex_buffer,
-            TRI.len(),
+            &self.index_buffer,
+            QUAD_INDICES
+                .len()
+                .try_into()
+                .expect("Failed to convert to u32"),
         );
 
         let signal_semaphores = [self.sync_info.render_semaphores[self.current_frame]];

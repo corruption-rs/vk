@@ -1,33 +1,34 @@
-use std::{
-    mem::size_of,
-    ptr,
-};
+use std::{mem::size_of, ptr};
 
 use ash::vk;
 
 use super::vertex::Vertex;
 use gpu_allocator::vulkan;
 
-pub fn create_vertex_buffer(
-    vertices: Vec<Vertex>,
+pub fn create_buffer(
     device: &ash::Device,
     allocator: &mut vulkan::Allocator,
+    size: u64,
+    name: &str,
+    sharing_mode: vk::SharingMode,
+    usage: vk::BufferUsageFlags,
+    location: gpu_allocator::MemoryLocation,
 ) -> (vk::Buffer, vulkan::Allocation) {
     let buffer_info = vk::BufferCreateInfo::builder()
-        .size(size_of::<Vertex>() as u64 * vertices.len() as u64)
-        .usage(vk::BufferUsageFlags::VERTEX_BUFFER)
-        .sharing_mode(vk::SharingMode::EXCLUSIVE);
+        .size(size)
+        .usage(usage)
+        .sharing_mode(sharing_mode);
 
     let buffer = unsafe { device.create_buffer(&buffer_info, None) }
-        .expect("Failed to create vertex buffer");
+        .expect(&format!("Failed to create {}", name));
 
     let memory_requirements = unsafe { device.get_buffer_memory_requirements(buffer) };
 
     let allocation = allocator
         .allocate(&vulkan::AllocationCreateDesc {
-            name: "Vertex Buffer Allocation",
+            name: &format!("{} allocation", name),
             requirements: memory_requirements,
-            location: gpu_allocator::MemoryLocation::CpuToGpu,
+            location,
             linear: true,
         })
         .expect("Failed to allocate");
@@ -35,10 +36,29 @@ pub fn create_vertex_buffer(
     unsafe { device.bind_buffer_memory(buffer, allocation.memory(), allocation.offset()) }
         .expect("Failed to bind memory");
 
+    (buffer, allocation)
+}
+
+pub fn create_vertex_buffer(
+    vertices: Vec<Vertex>,
+    allocator: &mut gpu_allocator::vulkan::Allocator,
+    device: &ash::Device,
+    command_pool: vk::CommandPool,
+    queue: vk::Queue,
+) -> (vk::Buffer, gpu_allocator::vulkan::Allocation) {
+    let (staging_buffer, staging_allocation) = create_buffer(
+        device,
+        allocator,
+        size_of::<Vertex>() as u64 * vertices.as_slice().to_vec().len() as u64,
+        "Staging Buffer",
+        vk::SharingMode::EXCLUSIVE,
+        vk::BufferUsageFlags::VERTEX_BUFFER | vk::BufferUsageFlags::TRANSFER_SRC,
+        gpu_allocator::MemoryLocation::CpuToGpu,
+    );
     unsafe {
         ptr::copy_nonoverlapping(
             bytemuck::cast_slice(&vertices).as_ptr() as *const u8,
-            allocation
+            staging_allocation
                 .mapped_ptr()
                 .expect("Failed to get pointer")
                 .as_ptr() as *mut u8,
@@ -46,5 +66,150 @@ pub fn create_vertex_buffer(
         )
     };
 
-    (buffer, allocation)
+    let (vertex_buffer, allocation) = create_buffer(
+        device,
+        allocator,
+        size_of::<Vertex>() as u64 * vertices.as_slice().to_vec().len() as u64,
+        "Vertex Buffer",
+        vk::SharingMode::EXCLUSIVE,
+        vk::BufferUsageFlags::VERTEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST,
+        gpu_allocator::MemoryLocation::GpuOnly,
+    );
+
+    copy_buffer(
+        &device,
+        vertex_buffer,
+        staging_buffer,
+        size_of::<Vertex>() as u64 * vertices.as_slice().to_vec().len() as u64,
+        command_pool,
+        queue,
+    );
+
+    unsafe {
+        device.destroy_buffer(staging_buffer, None)
+    };
+    
+
+    allocator.free(staging_allocation).expect("Failed to free staging allocation");
+    // unsafe {
+    //     device.free_memory(staging_allocation.memory(), None)
+    // };
+
+    (vertex_buffer, allocation)
+}
+
+pub fn create_index_buffer(
+    indices: Vec<u16>,
+    allocator: &mut gpu_allocator::vulkan::Allocator,
+    device: &ash::Device,
+    command_pool: vk::CommandPool,
+    queue: vk::Queue,
+) -> (vk::Buffer, gpu_allocator::vulkan::Allocation) {
+    let (staging_buffer, staging_allocation) = create_buffer(
+        device,
+        allocator,
+        size_of::<u16>() as u64 * indices.as_slice().to_vec().len() as u64,
+        "Staging Buffer",
+        vk::SharingMode::EXCLUSIVE,
+        vk::BufferUsageFlags::INDEX_BUFFER | vk::BufferUsageFlags::TRANSFER_SRC,
+        gpu_allocator::MemoryLocation::CpuToGpu,
+    );
+    unsafe {
+        ptr::copy_nonoverlapping(
+            bytemuck::cast_slice(&indices).as_ptr() as *const u8,
+            staging_allocation
+                .mapped_ptr()
+                .expect("Failed to get pointer")
+                .as_ptr() as *mut u8,
+            size_of::<u16>() * indices.len(),
+        )
+    };
+
+    let (index_buffer, allocation) = create_buffer(
+        device,
+        allocator,
+        size_of::<u16>() as u64 * indices.as_slice().to_vec().len() as u64,
+        "Vertex Buffer",
+        vk::SharingMode::EXCLUSIVE,
+        vk::BufferUsageFlags::INDEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST,
+        gpu_allocator::MemoryLocation::GpuOnly,
+    );
+
+    copy_buffer(
+        &device,
+        index_buffer,
+        staging_buffer,
+        size_of::<u16>() as u64 * indices.as_slice().to_vec().len() as u64,
+        command_pool,
+        queue,
+    );
+
+    unsafe {
+        device.destroy_buffer(staging_buffer, None)
+    };
+    
+
+    allocator.free(staging_allocation).expect("Failed to free staging allocation");
+
+    (index_buffer, allocation)
+}
+
+fn copy_buffer(
+    device: &ash::Device,
+    src: vk::Buffer,
+    dst: vk::Buffer,
+    size: u64,
+    command_pool: vk::CommandPool,
+    queue: vk::Queue,
+) {
+    let allocate_info = vk::CommandBufferAllocateInfo::builder()
+        .level(vk::CommandBufferLevel::PRIMARY)
+        .command_pool(command_pool)
+        .command_buffer_count(1);
+
+    let command_buffer = unsafe { device.allocate_command_buffers(&allocate_info) }
+        .expect("Failed to allocate command buffer");
+
+    let begin_info =
+        vk::CommandBufferBeginInfo::builder().flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
+
+    unsafe {
+        device.begin_command_buffer(
+            *command_buffer
+                .first()
+                .expect("Failed to get command buffer"),
+            &begin_info,
+        )
+    }
+    .expect("Failed to begin command buffer");
+
+    let copy_region = vk::BufferCopy::builder().size(size).build();
+
+    unsafe {
+        device.cmd_copy_buffer(
+            *command_buffer
+                .first()
+                .expect("Failed to get command buffer"),
+            dst,
+            src,
+            &[copy_region],
+        )
+    }
+
+    unsafe {
+        device.end_command_buffer(
+            *command_buffer
+                .first()
+                .expect("Failed to get command buffer"),
+        )
+    }
+    .expect("Failed to begin command buffer");
+
+    let submit_info = vk::SubmitInfo::builder().command_buffers(&command_buffer);
+    unsafe { device.queue_submit(queue, &[*submit_info], vk::Fence::null()) }
+        .expect("Failed to begin command buffer");
+
+    unsafe { device.queue_wait_idle(queue) }.expect("Failed to wait for queue idle");
+
+    unsafe { device.free_command_buffers(command_pool, &command_buffer) };
 }
