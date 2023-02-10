@@ -59,7 +59,7 @@ pub fn create_swapchain(
         .clipped(true)
         .queue_family_indices(&indices)
         .old_swapchain(_old_swapchain)
-        .present_mode(vk::PresentModeKHR::FIFO);
+        .present_mode(vk::PresentModeKHR::FIFO_RELAXED);
 
     let loader = ash::extensions::khr::Swapchain::new(&instance, &device_info.device);
 
