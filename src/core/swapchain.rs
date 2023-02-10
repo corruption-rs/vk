@@ -6,7 +6,8 @@ pub fn create_swapchain(
     device_info: DeviceInfo,
     surface_info: SurfaceInfo,
     instance: &ash::Instance,
-    swapchains: Option<Vec<vk::SwapchainKHR>>
+    window: &winit::window::Window,
+    swapchains: Option<Vec<vk::SwapchainKHR>>,
 ) -> SwapchainInfo {
     unsafe { device_info.device.device_wait_idle() }.expect("Failed to wait for device idle");
 
@@ -38,20 +39,27 @@ pub fn create_swapchain(
 
     let _old_swapchain = vk::SwapchainKHR::null();
     let mut _swapchains = vec![vk::SwapchainKHR::null()];
-    let _old_swapchain = if swapchains.is_some() && swapchains.clone().unwrap().last().unwrap() != &vk::SwapchainKHR::null() {
+    let _old_swapchain = if swapchains.is_some()
+        && swapchains.clone().unwrap().last().unwrap() != &vk::SwapchainKHR::null()
+    {
         _swapchains = swapchains.clone().expect("Failed to get old swapchain");
         *_swapchains.last().expect("Failed to get old swapchain")
     } else {
         vk::SwapchainKHR::null()
     };
 
+    let size = window.inner_size();
+    let extent = vk::Extent2D::builder()
+        .width(size.width)
+        .height(size.height);
+
     let swapchain_create_info = vk::SwapchainCreateInfoKHR::builder()
         .surface(surface_info.surface)
         .pre_transform(capabilities.current_transform)
         .image_usage(vk::ImageUsageFlags::COLOR_ATTACHMENT)
-        .image_format(vk::Format::B8G8R8A8_SRGB)
+        .image_format(formats.clone()[0].format)
         .image_color_space(formats.clone()[0].color_space)
-        .image_extent(capabilities.min_image_extent)
+        .image_extent(*extent)
         .image_array_layers(1)
         .image_sharing_mode(vk::SharingMode::EXCLUSIVE)
         .composite_alpha(CompositeAlphaFlagsKHR::OPAQUE)
@@ -59,7 +67,7 @@ pub fn create_swapchain(
         .clipped(true)
         .queue_family_indices(&indices)
         .old_swapchain(_old_swapchain)
-        .present_mode(vk::PresentModeKHR::FIFO_RELAXED);
+        .present_mode(vk::PresentModeKHR::FIFO);
 
     let loader = ash::extensions::khr::Swapchain::new(&instance, &device_info.device);
 
@@ -78,10 +86,12 @@ pub fn create_swapchain(
         let subresource_range = vk::ImageSubresourceRange::builder()
             .aspect_mask(vk::ImageAspectFlags::COLOR)
             .level_count(1)
-            .layer_count(1);
+            .base_mip_level(0)
+            .layer_count(1)
+            .base_array_layer(0);
 
         let view_create_info = vk::ImageViewCreateInfo::builder()
-            .format(vk::Format::B8G8R8A8_SRGB)
+            .format(vk::Format::B8G8R8A8_UNORM)
             .view_type(vk::ImageViewType::TYPE_2D)
             .subresource_range(*subresource_range)
             .image(image);
@@ -102,7 +112,7 @@ pub fn create_swapchain(
         swapchains: _swapchains.to_vec(),
         loader,
         swapchain_views,
-        extent: capabilities.current_extent,
+        extent: *extent,
         formats,
     }
 }

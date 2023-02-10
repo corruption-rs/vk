@@ -64,8 +64,6 @@ impl App {
             std::env::var("ENABLE_RENDERDOC_CAPTURE").unwrap_or("0".to_string());
         let enable_validation = std::env::var("ENABLE_VALIDATION").unwrap_or("0".to_string());
 
-        std::env::set_var("WINIT_UNIX_BACKEND", "x11");
-
         env_logger::init();
 
         let event_loop = winit::event_loop::EventLoop::new();
@@ -151,8 +149,9 @@ impl App {
         let surface_info = create_surface(&window, &entry, &instance);
 
         let swapchain_info =
-            create_swapchain(device_info.clone(), surface_info.clone(), &instance, None);
+            create_swapchain(device_info.clone(), surface_info.clone(), &instance, &window, None);
 
+            
         let pipeline_info = create_pipeline(
             &device_info.device,
             "assets/shaders/default",
@@ -399,6 +398,7 @@ impl App {
             self.device_info.clone(),
             self.surface_info.clone(),
             &self.instance,
+            &self.window,
             Some(self.swapchain_info.swapchains.clone()),
         );
 
