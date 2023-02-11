@@ -148,14 +148,19 @@ impl App {
 
         let surface_info = create_surface(&window, &entry, &instance);
 
-        let swapchain_info =
-            create_swapchain(device_info.clone(), surface_info.clone(), &instance, &window, None);
+        let swapchain_info = create_swapchain(
+            device_info.clone(),
+            surface_info.clone(),
+            &instance,
+            &window,
+            None,
+        );
 
-            
         let pipeline_info = create_pipeline(
             &device_info.device,
             "assets/shaders/default",
             &swapchain_info.extent,
+            swapchain_info.formats[0].format,
         );
 
         let framebuffers = create_framebuffers(
@@ -280,7 +285,7 @@ impl App {
                     .expect("Failed to free allocation");
             }
         }
-        
+
         unsafe {
             self.device_info
                 .device
@@ -353,6 +358,13 @@ impl App {
                 None,
             )
         }
+        for swapchain in &self.swapchain_info.swapchains {
+            unsafe {
+                self.swapchain_info
+                    .loader
+                    .destroy_swapchain(*swapchain, None)
+            };
+        }
 
         for swapchain in &self.swapchain_info.swapchains {
             unsafe {
@@ -401,6 +413,27 @@ impl App {
             &self.window,
             Some(self.swapchain_info.swapchains.clone()),
         );
+        for _ in &self.swapchain_info.swapchains.clone() {
+            if self
+                .swapchain_info
+                .swapchains
+                .first()
+                .expect("Failed to get swapchains")
+                != self
+                    .swapchain_info
+                    .swapchains
+                    .last()
+                    .expect("Failed to get swapchains")
+            {
+                unsafe {
+                    self.swapchain_info
+                        .loader
+                        .destroy_swapchain(self.swapchain_info.swapchains[0], None)
+                };
+
+                self.swapchain_info.swapchains.remove(0);
+            }
+        }
 
         for framebuffer in &self.framebuffers {
             unsafe {
@@ -451,7 +484,7 @@ impl App {
 
         let index = match result {
             Ok(index) => index.0,
-            Err(_) => panic!("Failed to acquire next image"),
+            Err(_) => return,
         };
 
         unsafe {

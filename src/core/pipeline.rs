@@ -10,6 +10,7 @@ pub fn create_pipeline(
     device: &ash::Device,
     shader_name: &str,
     extent: &vk::Extent2D,
+    format: vk::Format, 
 ) -> PipelineInfo {
     let vert_module =
         create_shader_pipeline(device, file::read_file(&format!("{}_v.spv", shader_name)));
@@ -108,7 +109,7 @@ pub fn create_pipeline(
             .expect("Failed to create pipeline layout");
 
     let attachment_description = vk::AttachmentDescription::builder()
-        .format(vk::Format::B8G8R8A8_UNORM)
+        .format(format)
         .samples(vk::SampleCountFlags::TYPE_1)
         .load_op(vk::AttachmentLoadOp::CLEAR)
         .store_op(vk::AttachmentStoreOp::STORE)

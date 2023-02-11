@@ -91,7 +91,7 @@ pub fn create_swapchain(
             .base_array_layer(0);
 
         let view_create_info = vk::ImageViewCreateInfo::builder()
-            .format(vk::Format::B8G8R8A8_UNORM)
+            .format(formats[0].format)
             .view_type(vk::ImageViewType::TYPE_2D)
             .subresource_range(*subresource_range)
             .image(image);
