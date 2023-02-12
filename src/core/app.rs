@@ -358,13 +358,6 @@ impl App {
                 None,
             )
         }
-        for swapchain in &self.swapchain_info.swapchains {
-            unsafe {
-                self.swapchain_info
-                    .loader
-                    .destroy_swapchain(*swapchain, None)
-            };
-        }
 
         for swapchain in &self.swapchain_info.swapchains {
             unsafe {
