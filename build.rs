@@ -27,11 +27,11 @@ fn main() {
                     .as_os_str()
                     .to_str()
                     .expect("Failed to convert path to str")
-                    .split("/")
+                    .split(std::path::MAIN_SEPARATOR)
                     .collect::<Vec<&str>>();
 
                 let location = location.split_last().expect("Failed to split last").1;
-                let location = location.join("/");
+                let location = location.join(std::path::MAIN_SEPARATOR.to_string().as_str());
 
                 let mut command = cmd!(glslc 
                     ((String::from("--target-env=vulkan"))) 
