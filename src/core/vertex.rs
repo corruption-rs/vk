@@ -2,10 +2,9 @@ use std::mem::size_of;
 
 use ash::vk;
 use memoffset::offset_of;
-use serde::{Serialize, Deserialize};
 
 #[repr(C)]
-#[derive(Clone, Copy, Serialize, Deserialize)]
+#[derive(Clone, Copy)]
 pub struct Vertex {
     pub color: cgmath::Vector3<f32>,
     pub pos: cgmath::Vector2<f32>,

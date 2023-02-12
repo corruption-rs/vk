@@ -1,6 +1,7 @@
 mod allocator;
 pub mod app;
 mod buffers;
+pub mod camera;
 mod commands;
 mod debug;
 mod device;

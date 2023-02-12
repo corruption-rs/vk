@@ -17,5 +17,8 @@ image = "0.24.5"
 log = "0.4.17"
 memoffset = "0.8.0"
 raw-window-handle = "0.5.0"
-serde = { version = "1.0.152", features = ["serde_derive"] }
 winit = "0.27.3"
+
+[build-dependencies]
+command-macros = "0.2.9"
+glob = "0.3.1"
