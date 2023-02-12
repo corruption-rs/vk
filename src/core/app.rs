@@ -52,6 +52,7 @@ pub struct App {
     vertex_buffer: vk::Buffer,
     index_buffer: vk::Buffer,
     allocations: Option<Vec<vulkan::Allocation>>,
+    last_modification_time: filetime::FileTime,
 }
 
 impl App {
@@ -201,6 +202,9 @@ impl App {
 
         let sync_info = create_sync(&device_info.device);
 
+        let metadata = std::fs::metadata("assets/shaders").expect("Failed to get dir metadata");
+        let last_modification_time = filetime::FileTime::from_last_access_time(&metadata);
+
         let game = App {
             window,
             instance,
@@ -218,6 +222,7 @@ impl App {
             index_buffer,
             debug_info,
             allocations: Some(allocations),
+            last_modification_time,
         };
 
         game.run(event_loop);
@@ -444,6 +449,19 @@ impl App {
     }
 
     fn render(&mut self) {
+        let metadata = std::fs::metadata("assets/shaders").expect("Failed to get dir metadata");
+        let current_filetime = filetime::FileTime::from_last_access_time(&metadata);
+
+        if current_filetime != self.last_modification_time {
+            self.last_modification_time = current_filetime;
+            self.pipeline_info = create_pipeline(
+                &self.device_info.device,
+                "assets/shaders/default",
+                &self.swapchain_info.extent,
+                self.swapchain_info.formats[0].format,
+            );
+        }
+
         if self.is_exiting {
             return;
         }
