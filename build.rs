@@ -3,6 +3,7 @@ extern crate command_macros;
 use command_macros::cmd;
 
 fn main() {
+    println!("cargo:rerun-if-changed=assets/shaders");
     for entry in glob::glob("./assets/shaders/*.vert")
         .expect("Failed to read ./assets/shaders/*.vert")
         .chain(glob::glob("./assets/shaders/*.frag").expect("Failed to read ./assets/shaders/*.frag"))
