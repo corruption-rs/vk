@@ -10,7 +10,8 @@ pub fn create_pipeline(
     device: &ash::Device,
     shader_name: &str,
     extent: &vk::Extent2D,
-    format: vk::Format, 
+    format: vk::Format,
+    set_layouts: Option<vk::DescriptorSetLayout>,
 ) -> PipelineInfo {
     let vert_module =
         create_shader_pipeline(device, file::read_file(&format!("{}_v.spv", shader_name)));
@@ -102,7 +103,9 @@ pub fn create_pipeline(
         .logic_op_enable(false)
         .attachments(&attachments);
 
-    let pipeline_layout_create_info = vk::PipelineLayoutCreateInfo::builder();
+    let binding = [set_layouts.unwrap_or_default()];
+    let pipeline_layout_create_info =
+        vk::PipelineLayoutCreateInfo::builder().set_layouts(&binding);
 
     let pipeline_layout =
         unsafe { device.create_pipeline_layout(&pipeline_layout_create_info, None) }

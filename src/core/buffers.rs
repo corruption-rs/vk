@@ -1,8 +1,8 @@
-use std::{mem::size_of, ptr};
+use std::{mem::{size_of, size_of_val}, ptr};
 
 use ash::vk;
 
-use super::vertex::Vertex;
+use super::{vertex::Vertex, camera::Camera};
 use gpu_allocator::vulkan;
 
 pub fn create_buffer(
@@ -212,4 +212,64 @@ fn copy_buffer(
     unsafe { device.queue_wait_idle(queue) }.expect("Failed to wait for queue idle");
 
     unsafe { device.free_command_buffers(command_pool, &command_buffer) };
+}
+
+
+
+pub fn create_uniform_buffer<T: bytemuck::Pod>(
+    uniform_structure: T,
+    allocator: &mut gpu_allocator::vulkan::Allocator,
+    device: &ash::Device,
+    command_pool: vk::CommandPool,
+    queue: vk::Queue,
+) -> (vk::Buffer, gpu_allocator::vulkan::Allocation) {
+
+    let (staging_buffer, staging_allocation) = create_buffer(
+        device,
+        allocator,
+        size_of_val(&uniform_structure) as u64,
+        "Staging Buffer",
+        vk::SharingMode::EXCLUSIVE,
+        vk::BufferUsageFlags::UNIFORM_BUFFER | vk::BufferUsageFlags::TRANSFER_SRC,
+        gpu_allocator::MemoryLocation::CpuToGpu,
+    );
+
+    unsafe {
+        ptr::copy_nonoverlapping(
+            bytemuck::cast_slice(&[uniform_structure]).as_ptr() as *const u8,
+            staging_allocation
+                .mapped_ptr()
+                .expect("Failed to get pointer")
+                .as_ptr() as *mut u8,
+                size_of_val(&uniform_structure),
+        )
+    };
+
+    let (index_buffer, allocation) = create_buffer(
+        device,
+        allocator,
+        size_of::<Camera>() as u64,
+        "Uniform Buffer",
+        vk::SharingMode::EXCLUSIVE,
+        vk::BufferUsageFlags::UNIFORM_BUFFER | vk::BufferUsageFlags::TRANSFER_DST,
+        gpu_allocator::MemoryLocation::GpuOnly,
+    );
+
+    copy_buffer(
+        &device,
+        index_buffer,
+        staging_buffer,
+        size_of_val(&uniform_structure) as u64,
+        command_pool,
+        queue,
+    );
+
+    unsafe {
+        device.destroy_buffer(staging_buffer, None)
+    };
+    
+
+    allocator.free(staging_allocation).expect("Failed to free staging allocation");
+
+    (index_buffer, allocation)
 }

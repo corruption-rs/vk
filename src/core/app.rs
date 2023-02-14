@@ -162,6 +162,7 @@ impl App {
             "assets/shaders/default",
             &swapchain_info.extent,
             swapchain_info.formats[0].format,
+            None
         );
 
         let framebuffers = create_framebuffers(
@@ -543,6 +544,7 @@ impl App {
                 "assets/shaders/default",
                 &self.swapchain_info.extent,
                 self.swapchain_info.formats[0].format,
+                None
             );
 
             self.command_info = create_command_pool(
