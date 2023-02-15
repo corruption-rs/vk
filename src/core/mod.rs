@@ -12,5 +12,4 @@ mod structures;
 mod surface;
 mod swapchain;
 mod sync;
-mod uniforms;
 mod vertex;
