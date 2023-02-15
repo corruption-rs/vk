@@ -182,7 +182,7 @@ impl App {
         let mut allocations = Vec::new();
 
         let (vertex_buffer, vertex_allocation) = create_vertex_buffer(
-            QUAD_VERTICES.as_slice().to_vec(),
+            QUAD_VERTICES,
             &mut allocator,
             &device_info.device,
             command_info.command_pool,
@@ -192,7 +192,7 @@ impl App {
         allocations.push(vertex_allocation);
 
         let (index_buffer, index_allocation) = create_index_buffer(
-            QUAD_INDICES.to_vec(),
+            QUAD_INDICES,
             &mut allocator,
             &device_info.device,
             command_info.command_pool,

@@ -103,9 +103,13 @@ pub fn create_pipeline(
         .logic_op_enable(false)
         .attachments(&attachments);
 
-    let binding = [set_layouts.unwrap_or_default()];
-    let pipeline_layout_create_info =
-        vk::PipelineLayoutCreateInfo::builder().set_layouts(&binding);
+    let _set_layouts = [set_layouts.unwrap_or(vk::DescriptorSetLayout::null())];
+
+    let pipeline_layout_create_info = if set_layouts.is_some() {
+        vk::PipelineLayoutCreateInfo::builder().set_layouts(&_set_layouts)
+    } else {
+        vk::PipelineLayoutCreateInfo::builder()
+    };
 
     let pipeline_layout =
         unsafe { device.create_pipeline_layout(&pipeline_layout_create_info, None) }
