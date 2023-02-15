@@ -245,7 +245,7 @@ pub fn create_uniform_buffer<T: bytemuck::Pod>(
         )
     };
 
-    let (index_buffer, allocation) = create_buffer(
+    let (uniform_buffer, allocation) = create_buffer(
         device,
         allocator,
         size_of::<Camera>() as u64,
@@ -257,7 +257,7 @@ pub fn create_uniform_buffer<T: bytemuck::Pod>(
 
     copy_buffer(
         &device,
-        index_buffer,
+        uniform_buffer,
         staging_buffer,
         size_of_val(&uniform_structure) as u64,
         command_pool,
@@ -271,5 +271,22 @@ pub fn create_uniform_buffer<T: bytemuck::Pod>(
 
     allocator.free(staging_allocation).expect("Failed to free staging allocation");
 
-    (index_buffer, allocation)
+    (uniform_buffer, allocation)
 }
+
+fn create_descriptor_set(device: &ash::Device) -> vk::DescriptorSetLayout {
+    let ubo_layout_binding = vk::DescriptorSetLayoutBinding::builder()
+        .binding(0)
+        .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
+        .descriptor_count(1)
+        .stage_flags(vk::ShaderStageFlags::VERTEX);
+
+    let binding = [*ubo_layout_binding];
+    let descriptor_create_info = vk::DescriptorSetLayoutCreateInfo::builder().bindings(&binding);
+
+    let set_layout = unsafe { device.create_descriptor_set_layout(&descriptor_create_info, None) }
+        .expect("Failed to create descriptor set layout");
+
+    set_layout
+}
+
