@@ -71,6 +71,10 @@ impl App {
 
         let window = winit::window::WindowBuilder::new()
             .with_title("VKCR")
+            .with_min_inner_size(winit::dpi::LogicalSize {
+                height: 300,
+                width: 300,
+            })
             .build(&event_loop)
             .expect("Failed to create window");
 
@@ -162,7 +166,7 @@ impl App {
             "assets/shaders/default",
             &swapchain_info.extent,
             swapchain_info.formats[0].format,
-            None
+            None,
         );
 
         let framebuffers = create_framebuffers(
@@ -501,7 +505,7 @@ impl App {
 
         if last_modification_time != self.last_modification_time {
             self.last_modification_time = last_modification_time;
-            
+
             unsafe {
                 self.device_info
                     .device
@@ -544,7 +548,7 @@ impl App {
                 "assets/shaders/default",
                 &self.swapchain_info.extent,
                 self.swapchain_info.formats[0].format,
-                None
+                None,
             );
 
             self.command_info = create_command_pool(

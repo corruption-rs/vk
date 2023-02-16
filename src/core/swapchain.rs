@@ -40,7 +40,7 @@ pub fn create_swapchain(
     let _old_swapchain = vk::SwapchainKHR::null();
     let mut _swapchains = vec![vk::SwapchainKHR::null()];
     let _old_swapchain = if swapchains.is_some()
-        && swapchains.clone().unwrap().last().unwrap() != &vk::SwapchainKHR::null()
+        && swapchains.clone().expect("Failed to get swapchains").last().expect("Failed to get newest swapchain") != &vk::SwapchainKHR::null()
     {
         _swapchains = swapchains.clone().expect("Failed to get old swapchain");
         *_swapchains.last().expect("Failed to get old swapchain")
