@@ -1,11 +1,10 @@
 use std::{
-    mem::{size_of, size_of_val},
+    mem::size_of_val,
     ptr,
 };
 
 use ash::vk;
 
-use super::{camera::Camera};
 use gpu_allocator::vulkan;
 
 pub fn create_buffer(
@@ -49,7 +48,15 @@ pub fn create_vertex_buffer<T: bytemuck::Pod>(
     command_pool: vk::CommandPool,
     queue: vk::Queue,
 ) -> (vk::Buffer, gpu_allocator::vulkan::Allocation) {
-    create_buffer_staging(vertices, allocator, device, command_pool, queue, vk::BufferUsageFlags::VERTEX_BUFFER, "Vertex")
+    create_buffer_staging(
+        vertices,
+        allocator,
+        device,
+        command_pool,
+        queue,
+        vk::BufferUsageFlags::VERTEX_BUFFER,
+        "Vertex",
+    )
 }
 
 pub fn create_index_buffer<T: bytemuck::Pod>(
@@ -59,7 +66,40 @@ pub fn create_index_buffer<T: bytemuck::Pod>(
     command_pool: vk::CommandPool,
     queue: vk::Queue,
 ) -> (vk::Buffer, gpu_allocator::vulkan::Allocation) {
-    create_buffer_staging(indices, allocator, device, command_pool, queue, vk::BufferUsageFlags::INDEX_BUFFER, "Index")
+    create_buffer_staging(
+        indices,
+        allocator,
+        device,
+        command_pool,
+        queue,
+        vk::BufferUsageFlags::INDEX_BUFFER,
+        "Index",
+    )
+}
+
+pub fn create_uniform_buffer<T: bytemuck::Pod>(
+    uniform_data: Vec<T>,
+    allocator: &mut gpu_allocator::vulkan::Allocator,
+    device: &ash::Device,
+    command_pool: vk::CommandPool,
+    queue: vk::Queue,
+    uniform_buffers: &mut Vec<vk::Buffer>,
+) -> Vec<gpu_allocator::vulkan::Allocation> {
+    let mut allocations = Vec::new();
+    for i in 0..uniform_buffers.len() {
+        let data = create_buffer_staging(
+            uniform_data[i],
+            allocator,
+            device,
+            command_pool,
+            queue,
+            vk::BufferUsageFlags::UNIFORM_BUFFER,
+            "Uniform",
+        );
+        uniform_buffers.push(data.0);
+        allocations.push(data.1);
+    }
+    allocations
 }
 
 fn copy_buffer(
@@ -178,62 +218,6 @@ fn create_buffer_staging<T: bytemuck::Pod>(
         .expect("Failed to free staging allocation");
 
     (buffer, allocation)
-}
-
-pub fn create_uniform_buffer<T: bytemuck::Pod>(
-    uniform_structure: T,
-    allocator: &mut gpu_allocator::vulkan::Allocator,
-    device: &ash::Device,
-    command_pool: vk::CommandPool,
-    queue: vk::Queue,
-) -> (vk::Buffer, gpu_allocator::vulkan::Allocation) {
-    let (staging_buffer, staging_allocation) = create_buffer(
-        device,
-        allocator,
-        size_of_val(&uniform_structure) as u64,
-        "Staging Buffer",
-        vk::SharingMode::EXCLUSIVE,
-        vk::BufferUsageFlags::UNIFORM_BUFFER | vk::BufferUsageFlags::TRANSFER_SRC,
-        gpu_allocator::MemoryLocation::CpuToGpu,
-    );
-
-    unsafe {
-        ptr::copy_nonoverlapping(
-            bytemuck::cast_slice(&[uniform_structure]).as_ptr() as *const u8,
-            staging_allocation
-                .mapped_ptr()
-                .expect("Failed to get pointer")
-                .as_ptr() as *mut u8,
-            size_of_val(&uniform_structure),
-        )
-    };
-
-    let (uniform_buffer, allocation) = create_buffer(
-        device,
-        allocator,
-        size_of::<Camera>() as u64,
-        "Uniform Buffer",
-        vk::SharingMode::EXCLUSIVE,
-        vk::BufferUsageFlags::UNIFORM_BUFFER | vk::BufferUsageFlags::TRANSFER_DST,
-        gpu_allocator::MemoryLocation::GpuOnly,
-    );
-
-    copy_buffer(
-        &device,
-        uniform_buffer,
-        staging_buffer,
-        size_of_val(&uniform_structure) as u64,
-        command_pool,
-        queue,
-    );
-
-    unsafe { device.destroy_buffer(staging_buffer, None) };
-
-    allocator
-        .free(staging_allocation)
-        .expect("Failed to free staging allocation");
-
-    (uniform_buffer, allocation)
 }
 
 fn create_descriptor_set(device: &ash::Device) -> vk::DescriptorSetLayout {

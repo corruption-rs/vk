@@ -291,6 +291,10 @@ impl App {
         });
     }
 
+    fn update(&self) {
+
+    }
+
     fn cleanup(&mut self) {
         self.is_exiting = true;
 
