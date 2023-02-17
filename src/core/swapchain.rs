@@ -42,7 +42,7 @@ pub fn create_swapchain(
     let _old_swapchain = if swapchains.is_some()
         && swapchains.clone().expect("Failed to get swapchains").last().expect("Failed to get newest swapchain") != &vk::SwapchainKHR::null()
     {
-        _swapchains = swapchains.clone().expect("Failed to get old swapchain");
+        _swapchains = swapchains.expect("Failed to get old swapchain");
         *_swapchains.last().expect("Failed to get old swapchain")
     } else {
         vk::SwapchainKHR::null()
@@ -57,8 +57,8 @@ pub fn create_swapchain(
         .surface(surface_info.surface)
         .pre_transform(capabilities.current_transform)
         .image_usage(vk::ImageUsageFlags::COLOR_ATTACHMENT)
-        .image_format(formats.clone()[0].format)
-        .image_color_space(formats.clone()[0].color_space)
+        .image_format(formats[0].format)
+        .image_color_space(formats[0].color_space)
         .image_extent(*extent)
         .image_array_layers(1)
         .image_sharing_mode(vk::SharingMode::EXCLUSIVE)
@@ -69,7 +69,7 @@ pub fn create_swapchain(
         .old_swapchain(_old_swapchain)
         .present_mode(vk::PresentModeKHR::FIFO);
 
-    let loader = ash::extensions::khr::Swapchain::new(&instance, &device_info.device);
+    let loader = ash::extensions::khr::Swapchain::new(instance, &device_info.device);
 
     let swapchain = unsafe {
         loader

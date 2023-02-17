@@ -24,7 +24,7 @@ unsafe extern "system" fn debug_callback(
 }
 
 pub fn create_debug(entry: &ash::Entry, instance: &ash::Instance) -> DebugInfo {
-    let debug_utils = ash::extensions::ext::DebugUtils::new(&entry, &instance);
+    let debug_utils = ash::extensions::ext::DebugUtils::new(entry, instance);
     let debug_create_info = vk::DebugUtilsMessengerCreateInfoEXT::builder()
         .pfn_user_callback(Some(debug_callback))
         .message_severity(

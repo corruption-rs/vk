@@ -22,13 +22,13 @@ pub fn create_pipeline(
     let vertex_pipeline_shader_stage_create_info = vk::PipelineShaderStageCreateInfo::builder()
         .stage(vk::ShaderStageFlags::VERTEX)
         .module(vert_module)
-        .name(&CStr::from_bytes_with_nul("main\0".as_bytes()).expect("Failed to convert to cstr"))
+        .name(CStr::from_bytes_with_nul("main\0".as_bytes()).expect("Failed to convert to cstr"))
         .build();
 
     let fragment_pipeline_shader_stage_create_info = vk::PipelineShaderStageCreateInfo::builder()
         .stage(vk::ShaderStageFlags::FRAGMENT)
         .module(frag_module)
-        .name(&CStr::from_bytes_with_nul("main\0".as_bytes()).expect("Failed to convert to cstr"))
+        .name(CStr::from_bytes_with_nul("main\0".as_bytes()).expect("Failed to convert to cstr"))
         .build();
 
     let shader_stages = [
@@ -63,7 +63,7 @@ pub fn create_pipeline(
 
     let scissor = vk::Rect2D::builder()
         .offset(*vk::Offset2D::builder().x(0).y(0))
-        .extent(extent.clone());
+        .extent(*extent);
 
     let scissors = [*scissor];
     let viewports = [*viewport];

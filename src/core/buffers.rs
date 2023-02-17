@@ -22,7 +22,7 @@ pub fn create_buffer(
         .sharing_mode(sharing_mode);
 
     let buffer = unsafe { device.create_buffer(&buffer_info, None) }
-        .expect(&format!("Failed to create {}", name));
+        .unwrap_or_else(|_| panic!("Failed to create {}", name));
 
     let memory_requirements = unsafe { device.get_buffer_memory_requirements(buffer) };
 
@@ -77,7 +77,7 @@ pub fn create_index_buffer<T: bytemuck::Pod>(
     )
 }
 
-pub fn create_uniform_buffer<T: bytemuck::Pod>(
+pub fn create_uniform_buffers<T: bytemuck::Pod>(
     uniform_data: Vec<T>,
     allocator: &mut gpu_allocator::vulkan::Allocator,
     device: &ash::Device,
@@ -86,9 +86,9 @@ pub fn create_uniform_buffer<T: bytemuck::Pod>(
     uniform_buffers: &mut Vec<vk::Buffer>,
 ) -> Vec<gpu_allocator::vulkan::Allocation> {
     let mut allocations = Vec::new();
-    for i in 0..uniform_buffers.len() {
+    for i in uniform_data {
         let data = create_buffer_staging(
-            uniform_data[i],
+            i,
             allocator,
             device,
             command_pool,
@@ -230,8 +230,8 @@ fn create_descriptor_set(device: &ash::Device) -> vk::DescriptorSetLayout {
     let binding = [*ubo_layout_binding];
     let descriptor_create_info = vk::DescriptorSetLayoutCreateInfo::builder().bindings(&binding);
 
-    let set_layout = unsafe { device.create_descriptor_set_layout(&descriptor_create_info, None) }
-        .expect("Failed to create descriptor set layout");
+    
 
-    set_layout
+    unsafe { device.create_descriptor_set_layout(&descriptor_create_info, None) }
+        .expect("Failed to create descriptor set layout")
 }

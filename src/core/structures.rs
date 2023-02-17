@@ -90,7 +90,7 @@ impl std::fmt::Display for QueueFamily {
             f,
             "Priorities: {}; Index: {}",
             priority_string,
-            self.index.to_string()
+            self.index
         )
     }
 }

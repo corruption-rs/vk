@@ -5,7 +5,8 @@ use ash::vk;
 use gpu_allocator::vulkan;
 use raw_window_handle::HasRawDisplayHandle;
 
-use crate::core::buffers::{create_index_buffer, create_vertex_buffer};
+use crate::core::buffers::{create_index_buffer, create_uniform_buffers, create_vertex_buffer};
+use crate::core::camera::Camera;
 use crate::core::debug::create_debug;
 
 use crate::core::geometry::{QUAD_INDICES, QUAD_VERTICES};
@@ -25,13 +26,13 @@ use super::{
 
 extern crate env_logger;
 
-const APP_NAME: &'static str = "VKCR\0";
-const ENGINE_NAME: &'static str = "VKCR Renderer\0";
+const APP_NAME: &str = "VKCR\0";
+const ENGINE_NAME: &str = "VKCR Renderer\0";
 
-const API_DUMP: &'static str = "VK_LAYER_LUNARG_api_dump\0";
-const RENDERDOC_CAPTURE: &'static str = "VK_LAYER_RENDERDOC_Capture\0";
+const API_DUMP: &str = "VK_LAYER_LUNARG_api_dump\0";
+const RENDERDOC_CAPTURE: &str = "VK_LAYER_RENDERDOC_Capture\0";
 
-const VALIDATION: &'static str = "VK_LAYER_KHRONOS_validation\0";
+const VALIDATION: &str = "VK_LAYER_KHRONOS_validation\0";
 
 pub const MAX_CONCURRENT_FRAMES: u8 = 2;
 
@@ -51,6 +52,7 @@ pub struct App {
     allocator: Option<vulkan::Allocator>,
     vertex_buffer: vk::Buffer,
     index_buffer: vk::Buffer,
+    uniform_buffers: Vec<vk::Buffer>,
     allocations: Option<Vec<vulkan::Allocation>>,
     last_modification_time: std::time::Duration,
 }
@@ -60,10 +62,10 @@ impl App {
         let mut instance_extensions: Vec<*const i8> =
             vec![ash::extensions::ext::DebugUtils::name().as_ptr()];
 
-        let enable_api_dump = std::env::var("ENABLE_API_DUMP").unwrap_or("0".to_string());
+        let enable_api_dump = std::env::var("ENABLE_API_DUMP").unwrap_or_else(|_| "0".to_string());
         let enable_renderdoc_capture =
-            std::env::var("ENABLE_RENDERDOC_CAPTURE").unwrap_or("0".to_string());
-        let enable_validation = std::env::var("ENABLE_VALIDATION").unwrap_or("0".to_string());
+            std::env::var("ENABLE_RENDERDOC_CAPTURE").unwrap_or_else(|_| "0".to_string());
+        let enable_validation = std::env::var("ENABLE_VALIDATION").unwrap_or_else(|_| "0".to_string());
 
         env_logger::init();
 
@@ -79,9 +81,9 @@ impl App {
             .expect("Failed to create window");
 
         let application_info = vk::ApplicationInfo::builder()
-            .application_name(unsafe { &CStr::from_ptr(APP_NAME.as_ptr() as *const i8) })
+            .application_name(unsafe { CStr::from_ptr(APP_NAME.as_ptr() as *const i8) })
             .application_version(vk::make_api_version(0, 0, 1, 0))
-            .engine_name(unsafe { &CStr::from_ptr(ENGINE_NAME.as_ptr() as *const i8) })
+            .engine_name(unsafe { CStr::from_ptr(ENGINE_NAME.as_ptr() as *const i8) })
             .engine_version(vk::make_api_version(0, 0, 1, 0))
             .api_version(vk::make_api_version(0, 1, 3, 239));
 
@@ -228,6 +230,20 @@ impl App {
             }
         }
 
+        let mut uniform_buffers = Vec::new();
+        create_uniform_buffers(
+            vec![Camera {
+                model: cgmath::Matrix4::from_scale(1.0),
+                view: cgmath::Matrix4::from_scale(1.0),
+                proj: cgmath::Matrix4::from_scale(1.0),
+            }],
+            &mut allocator,
+            &device_info.device,
+            command_info.command_pool,
+            device_info.queue,
+            &mut uniform_buffers,
+        );
+
         let game = App {
             window,
             instance,
@@ -246,6 +262,7 @@ impl App {
             debug_info,
             allocations: Some(allocations),
             last_modification_time,
+            uniform_buffers
         };
 
         game.run(event_loop);
@@ -292,7 +309,14 @@ impl App {
     }
 
     fn update(&self) {
-
+        let start = std::time::Instant::now();
+        let current = std::time::Instant::now();
+        let time = (current - start).as_secs_f32();
+        // let camera = Camera {
+        //     model: cgmath::Matrix4::from(time * 3.1415),
+        //     view: todo!(),
+        //     proj: todo!(),
+        // }
     }
 
     fn cleanup(&mut self) {
@@ -422,6 +446,7 @@ impl App {
         }
         match event.expect("Failed to read input") {
             winit::event::VirtualKeyCode::A => {}
+            winit::event::VirtualKeyCode::S => {}
             _ => (),
         }
     }
@@ -678,6 +703,6 @@ impl App {
             return;
         }
 
-        self.current_frame = (self.current_frame + 1 as usize) % MAX_CONCURRENT_FRAMES as usize;
+        self.current_frame = (self.current_frame + 1_usize) % MAX_CONCURRENT_FRAMES as usize;
     }
 }

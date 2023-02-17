@@ -9,8 +9,8 @@ pub fn create_surface(
 ) -> SurfaceInfo {
     let surface = unsafe {
         ash_window::create_surface(
-            &entry,
-            &instance,
+            entry,
+            instance,
             window.raw_display_handle(),
             window.raw_window_handle(),
             None,
@@ -18,7 +18,7 @@ pub fn create_surface(
         .expect("Failed to create surface")
     };
 
-    let surface_loader = ash::extensions::khr::Surface::new(&entry, &instance);
+    let surface_loader = ash::extensions::khr::Surface::new(entry, instance);
 
     SurfaceInfo {
         surface,

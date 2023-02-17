@@ -4,5 +4,7 @@ pub struct Camera {
     pub model: cgmath::Matrix4<f32>,
     pub view: cgmath::Matrix4<f32>,
     pub proj: cgmath::Matrix4<f32>,
-
 }
+
+unsafe impl bytemuck::Pod for Camera {}
+unsafe impl bytemuck::Zeroable for Camera {}

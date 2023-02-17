@@ -19,7 +19,7 @@ fn main() {
                     .file_name()
                     .and_then(std::ffi::OsStr::to_str)
                     .expect("Failed to get file name")
-                    .split(".")
+                    .split('.')
                     .collect::<Vec<&str>>();
 
                 let name = name.first().expect("Failed to get file name");
