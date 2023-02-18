@@ -37,19 +37,34 @@ pub fn create_swapchain(
         .map(|k| k.index)
         .collect();
 
-    let mut new_swapchains = swapchains.clone().unwrap_or(vec![vk::SwapchainKHR::null()]);
-    let last_swapchain =  *swapchains.unwrap_or(new_swapchains.clone()).last().unwrap_or(&vk::SwapchainKHR::null());
+    let mut new_swapchains = swapchains.clone().unwrap_or_else(|| vec![vk::SwapchainKHR::null()]);
+    let last_swapchain = *swapchains
+        .unwrap_or_else(|| new_swapchains.clone())
+        .last()
+        .unwrap_or(&vk::SwapchainKHR::null());
 
     let size = window.inner_size();
     let extent = vk::Extent2D::builder()
         .width(size.width)
         .height(size.height);
 
+    let format = if formats
+        .iter()
+        .filter(|format| format.format == vk::Format::B8G8R8A8_SRGB)
+        .map(|format| format.format)
+        .next()
+        .is_some()
+    {
+        vk::Format::B8G8R8A8_SRGB
+    } else {
+        formats[0].format
+    };
+
     let swapchain_create_info = vk::SwapchainCreateInfoKHR::builder()
         .surface(surface_info.surface)
         .pre_transform(capabilities.current_transform)
         .image_usage(vk::ImageUsageFlags::COLOR_ATTACHMENT)
-        .image_format(formats[0].format)
+        .image_format(format)
         .image_color_space(formats[0].color_space)
         .image_extent(*extent)
         .image_array_layers(1)
@@ -59,7 +74,7 @@ pub fn create_swapchain(
         .clipped(true)
         .queue_family_indices(&indices)
         .old_swapchain(last_swapchain)
-        .present_mode(vk::PresentModeKHR::FIFO);
+        .present_mode(vk::PresentModeKHR::IMMEDIATE);
 
     let loader = ash::extensions::khr::Swapchain::new(instance, &device_info.device);
 
@@ -83,7 +98,7 @@ pub fn create_swapchain(
             .base_array_layer(0);
 
         let view_create_info = vk::ImageViewCreateInfo::builder()
-            .format(formats[0].format)
+            .format(format)
             .view_type(vk::ImageViewType::TYPE_2D)
             .subresource_range(*subresource_range)
             .image(image);
@@ -106,5 +121,6 @@ pub fn create_swapchain(
         swapchain_views,
         extent: *extent,
         formats,
+        current_format: format
     }
 }

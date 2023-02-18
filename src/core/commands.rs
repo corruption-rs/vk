@@ -45,7 +45,7 @@ pub fn record_buffer(
     command_buffer: vk::CommandBuffer,
     buffers: &[Buffer],
     count: u32,
-    descriptor_sets: &Vec<vk::DescriptorSet>,
+    descriptor_sets: &[vk::DescriptorSet],
     current_frame: usize,
 ) {
     let buffer_begin_info = vk::CommandBufferBeginInfo::builder();

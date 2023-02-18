@@ -80,8 +80,8 @@ pub fn create_pipeline(
             .depth_clamp_enable(false) // TODO: change to true after enabling the GPU feature
             .rasterizer_discard_enable(false)
             .polygon_mode(vk::PolygonMode::FILL)
-            .cull_mode(vk::CullModeFlags::BACK)
-            .front_face(vk::FrontFace::COUNTER_CLOCKWISE)
+            .cull_mode(vk::CullModeFlags::NONE)
+            .front_face(vk::FrontFace::CLOCKWISE)
             .depth_bias_enable(false);
 
     let pipeline_multisample_state_create_info = vk::PipelineMultisampleStateCreateInfo::builder()
@@ -104,8 +104,8 @@ pub fn create_pipeline(
         .attachments(&attachments);
 
 
-    let pipeline_layout_create_info = if set_layouts.len() > 0 {
-        vk::PipelineLayoutCreateInfo::builder().set_layouts(&set_layouts)
+    let pipeline_layout_create_info = if !set_layouts.is_empty() {
+        vk::PipelineLayoutCreateInfo::builder().set_layouts(set_layouts)
     } else {
         vk::PipelineLayoutCreateInfo::builder()
     };

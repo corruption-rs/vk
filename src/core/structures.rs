@@ -49,6 +49,7 @@ pub struct SwapchainInfo {
     pub swapchain_views: Vec<vk::ImageView>,
     pub formats: Vec<vk::SurfaceFormatKHR>,
     pub extent: vk::Extent2D,
+    pub current_format: vk::Format,
 }
 
 #[derive(Clone)]

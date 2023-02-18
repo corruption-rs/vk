@@ -1,4 +1,4 @@
-use std::{mem::size_of_val, ptr, char::MAX};
+use std::{mem::size_of_val, ptr};
 
 use ash::vk;
 
@@ -281,7 +281,7 @@ pub fn create_descriptor_sets<T: bytemuck::Pod>(
         .expect("Failed to allocate descriptor sets");
     
 
-    for i in 0..descriptor_sets.len() as usize {
+    for i in 0..descriptor_sets.len() {
         let buffer_info = vk::DescriptorBufferInfo::builder()
             .buffer(
                 uniform_buffers

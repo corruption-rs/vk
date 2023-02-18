@@ -59,6 +59,7 @@ pub struct App {
     descriptor_pool: vk::DescriptorPool,
     descriptor_set_layouts: Vec<vk::DescriptorSetLayout>,
     last_modification_time: std::time::Duration,
+    total_delta: f32,
 }
 
 impl App {
@@ -188,17 +189,14 @@ impl App {
             device_info.queue,
         );
 
-        let (descriptor_sets, descriptor_pool, descriptor_set_layouts) = create_descriptor_sets(
-            &device_info.device,
-            &uniform_buffers,
-            Camera::default(),
-        );
+        let (descriptor_sets, descriptor_pool, descriptor_set_layouts) =
+            create_descriptor_sets(&device_info.device, &uniform_buffers, Camera::default());
 
         let pipeline_info = create_pipeline(
             &device_info.device,
             "assets/shaders/default",
             &swapchain_info.extent,
-            swapchain_info.formats[0].format,
+            swapchain_info.current_format,
             &descriptor_set_layouts,
         );
 
@@ -276,6 +274,7 @@ impl App {
             descriptor_set_layouts,
             last_modification_time,
             buffers: Some(buffers),
+            total_delta: 0.1,
         };
 
         game.run(event_loop);
@@ -322,22 +321,19 @@ impl App {
     }
 
     fn update(&self, current_image: usize) {
-        let start = std::time::Instant::now();
-        let current = std::time::Instant::now();
-        let time = (current - start).as_secs_f32();
         let camera = Camera {
             model: cgmath::Matrix4::from_axis_angle(
                 cgmath::Vector3 {
-                    x: 1.0,
+                    x: 0.0,
                     y: 1.0,
-                    z: 1.0,
+                    z: 0.0,
                 },
-                cgmath::Deg(time * 90.0),
+                cgmath::Deg(self.total_delta / 10000.0),
             ),
-            view: cgmath::Matrix4::look_at_lh(
+            view: cgmath::Matrix4::look_at_rh(
                 cgmath::Point3 {
-                    x: 2.0,
-                    y: 2.0,
+                    x: 0.0,
+                    y: 1.0,
                     z: 2.0,
                 },
                 cgmath::Point3 {
@@ -347,15 +343,15 @@ impl App {
                 },
                 cgmath::Vector3 {
                     x: 0.0,
-                    y: 0.0,
-                    z: 1.0,
+                    y: 1.0,
+                    z: 0.0,
                 },
             ),
             proj: cgmath::perspective(
-                cgmath::Deg(170.0),
+                cgmath::Deg(45.0),
                 self.swapchain_info.extent.width as f32 / self.swapchain_info.extent.height as f32,
                 0.1,
-                10.0,
+                100.0,
             ),
         };
 
@@ -385,12 +381,6 @@ impl App {
 
     fn cleanup(&mut self) {
         self.is_exiting = true;
-
-        unsafe {
-            self.device_info
-                .device
-                .destroy_descriptor_pool(self.descriptor_pool, None)
-        };
 
         unsafe { self.device_info.device.device_wait_idle() }
             .expect("Failed to wait for device idle");
@@ -431,6 +421,18 @@ impl App {
                 .device
                 .destroy_command_pool(self.command_info.command_pool, None)
         }
+
+        unsafe {
+            self.device_info
+                .device
+                .destroy_descriptor_set_layout(self.descriptor_set_layouts[self.current_frame], None)
+        }
+
+        unsafe {
+            self.device_info
+                .device
+                .destroy_descriptor_pool(self.descriptor_pool, None)
+        };
 
         for framebuffer in &self.framebuffers {
             unsafe {
@@ -626,7 +628,7 @@ impl App {
                 &self.device_info.device,
                 "assets/shaders/default",
                 &self.swapchain_info.extent,
-                self.swapchain_info.formats[0].format,
+                self.swapchain_info.current_format,
                 &self.descriptor_set_layouts,
             );
 
@@ -644,6 +646,8 @@ impl App {
         if self.is_exiting {
             return;
         }
+
+        let start = std::time::Instant::now();
 
         self.update(self.current_frame);
 
@@ -711,7 +715,7 @@ impl App {
                 .try_into()
                 .expect("Failed to convert to u32"),
             &self.descriptor_sets,
-            self.current_frame
+            self.current_frame,
         );
 
         let signal_semaphores = [self.sync_info.render_semaphores[self.current_frame]];
@@ -757,5 +761,9 @@ impl App {
         }
 
         self.current_frame = (self.current_frame + 1_usize) % MAX_CONCURRENT_FRAMES as usize;
+        let current = std::time::Instant::now();
+        let delta = (current - start).as_micros() as f32;
+        let delta = if delta == 0.0 { 0.1 } else { delta };
+        self.total_delta += delta;
     }
 }
