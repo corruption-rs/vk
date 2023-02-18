@@ -2,8 +2,15 @@ use ash::vk::{self, Offset2D};
 
 use super::{
     app::MAX_CONCURRENT_FRAMES,
-    structures::{CommandInfo, PipelineInfo, QueueFamily, SwapchainInfo},
+    structures::{PipelineInfo, QueueFamily, SwapchainInfo},
 };
+
+
+#[derive(Clone)]
+pub struct CommandInfo {
+    pub command_pool: vk::CommandPool,
+    pub command_buffers: Vec<vk::CommandBuffer>,
+}
 
 pub fn create_command_pool(queue_family: &QueueFamily, device: &ash::Device) -> CommandInfo {
     let command_pool_info = vk::CommandPoolCreateInfo::builder()

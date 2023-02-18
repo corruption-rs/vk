@@ -1,11 +1,6 @@
 use ash::vk;
 
 #[derive(Clone)]
-pub struct CommandInfo {
-    pub command_pool: vk::CommandPool,
-    pub command_buffers: Vec<vk::CommandBuffer>,
-}
-#[derive(Clone)]
 pub struct DebugInfo {
     pub loader: ash::extensions::ext::DebugUtils,
     pub messenger: vk::DebugUtilsMessengerEXT,
@@ -86,11 +81,6 @@ impl std::fmt::Display for QueueFamily {
             priority_string.push_str(", ");
         }
 
-        write!(
-            f,
-            "Priorities: {}; Index: {}",
-            priority_string,
-            self.index
-        )
+        write!(f, "Priorities: {}; Index: {}", priority_string, self.index)
     }
 }

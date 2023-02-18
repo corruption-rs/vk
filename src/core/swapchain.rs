@@ -37,16 +37,8 @@ pub fn create_swapchain(
         .map(|k| k.index)
         .collect();
 
-    let _old_swapchain = vk::SwapchainKHR::null();
-    let mut _swapchains = vec![vk::SwapchainKHR::null()];
-    let _old_swapchain = if swapchains.is_some()
-        && swapchains.clone().expect("Failed to get swapchains").last().expect("Failed to get newest swapchain") != &vk::SwapchainKHR::null()
-    {
-        _swapchains = swapchains.expect("Failed to get old swapchain");
-        *_swapchains.last().expect("Failed to get old swapchain")
-    } else {
-        vk::SwapchainKHR::null()
-    };
+    let mut new_swapchains = swapchains.clone().unwrap_or(vec![vk::SwapchainKHR::null()]);
+    let last_swapchain =  *swapchains.unwrap_or(new_swapchains.clone()).last().unwrap_or(&vk::SwapchainKHR::null());
 
     let size = window.inner_size();
     let extent = vk::Extent2D::builder()
@@ -66,7 +58,7 @@ pub fn create_swapchain(
         .min_image_count(capabilities.min_image_count)
         .clipped(true)
         .queue_family_indices(&indices)
-        .old_swapchain(_old_swapchain)
+        .old_swapchain(last_swapchain)
         .present_mode(vk::PresentModeKHR::FIFO);
 
     let loader = ash::extensions::khr::Swapchain::new(instance, &device_info.device);
@@ -106,10 +98,10 @@ pub fn create_swapchain(
         swapchain_views.push(view);
     }
 
-    _swapchains.push(swapchain);
+    new_swapchains.push(swapchain);
 
     SwapchainInfo {
-        swapchains: _swapchains.to_vec(),
+        swapchains: new_swapchains.to_vec(),
         loader,
         swapchain_views,
         extent: *extent,

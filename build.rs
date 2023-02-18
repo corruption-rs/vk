@@ -39,7 +39,7 @@ fn main() {
                     ((path.to_str().expect("Failed to convert path to string"))) 
                     ((String::from("-o")))
                     ((format!("{}/{}_{}.spv", location, name, extension.split_at(1).0)))
-                    ((format!("-fshader-stage={}", extension))));
+                    ((format!("-fshader-stage={extension}"))));
                 command.spawn().expect("Failed to launch glslc, make sure it's in your $PATH");
             }
             Err(e) => panic!("{}", e),

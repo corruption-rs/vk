@@ -1,11 +1,15 @@
-use std::{
-    mem::size_of_val,
-    ptr,
-};
+use std::{mem::size_of_val, ptr};
 
 use ash::vk;
 
 use gpu_allocator::vulkan;
+
+pub struct Buffer {
+    pub name: String,
+    pub buffer: vk::Buffer,
+    pub buffer_type: vk::BufferUsageFlags,
+    pub allocation: Option<gpu_allocator::vulkan::Allocation>,
+}
 
 pub fn create_buffer(
     device: &ash::Device,
@@ -22,13 +26,13 @@ pub fn create_buffer(
         .sharing_mode(sharing_mode);
 
     let buffer = unsafe { device.create_buffer(&buffer_info, None) }
-        .unwrap_or_else(|_| panic!("Failed to create {}", name));
+        .unwrap_or_else(|_| panic!("Failed to create {name}"));
 
     let memory_requirements = unsafe { device.get_buffer_memory_requirements(buffer) };
 
     let allocation = allocator
         .allocate(&vulkan::AllocationCreateDesc {
-            name: &format!("{} allocation", name),
+            name: &format!("{name} allocation"),
             requirements: memory_requirements,
             location,
             linear: true,
@@ -47,7 +51,7 @@ pub fn create_vertex_buffer<T: bytemuck::Pod>(
     device: &ash::Device,
     command_pool: vk::CommandPool,
     queue: vk::Queue,
-) -> (vk::Buffer, gpu_allocator::vulkan::Allocation) {
+) -> Buffer {
     create_buffer_staging(
         vertices,
         allocator,
@@ -65,7 +69,7 @@ pub fn create_index_buffer<T: bytemuck::Pod>(
     device: &ash::Device,
     command_pool: vk::CommandPool,
     queue: vk::Queue,
-) -> (vk::Buffer, gpu_allocator::vulkan::Allocation) {
+) -> Buffer {
     create_buffer_staging(
         indices,
         allocator,
@@ -77,17 +81,18 @@ pub fn create_index_buffer<T: bytemuck::Pod>(
     )
 }
 
-pub fn create_uniform_buffers<T: bytemuck::Pod>(
+pub fn create_uniform_buffer<T: bytemuck::Pod>(
     uniform_data: Vec<T>,
     allocator: &mut gpu_allocator::vulkan::Allocator,
     device: &ash::Device,
     command_pool: vk::CommandPool,
     queue: vk::Queue,
-    uniform_buffers: &mut Vec<vk::Buffer>,
-) -> Vec<gpu_allocator::vulkan::Allocation> {
+) -> Vec<Buffer> {
     let mut allocations = Vec::new();
+    let mut buffers = Vec::new();
+    let mut uniform_buffers = Vec::new();
     for i in uniform_data {
-        let data = create_buffer_staging(
+        let buffer = create_buffer_staging(
             i,
             allocator,
             device,
@@ -96,10 +101,19 @@ pub fn create_uniform_buffers<T: bytemuck::Pod>(
             vk::BufferUsageFlags::UNIFORM_BUFFER,
             "Uniform",
         );
-        uniform_buffers.push(data.0);
-        allocations.push(data.1);
+        uniform_buffers.push(buffer.buffer);
+        allocations.push(buffer.allocation);
     }
-    allocations
+    for i in 0..uniform_buffers.len() {
+        buffers.push(Buffer {
+            name: "Uniform".to_owned(),
+            buffer: uniform_buffers[i],
+            buffer_type: vk::BufferUsageFlags::UNIFORM_BUFFER,
+            allocation: allocations[i].take(),
+        })
+    }
+
+    buffers
 }
 
 fn copy_buffer(
@@ -170,7 +184,7 @@ fn create_buffer_staging<T: bytemuck::Pod>(
     queue: vk::Queue,
     usage: vk::BufferUsageFlags,
     name: &str,
-) -> (vk::Buffer, gpu_allocator::vulkan::Allocation) {
+) -> Buffer {
     let (staging_buffer, staging_allocation) = create_buffer(
         device,
         allocator,
@@ -196,14 +210,14 @@ fn create_buffer_staging<T: bytemuck::Pod>(
         device,
         allocator,
         size_of_val(&data) as u64,
-        format!("{} Buffer", name).as_str(),
+        format!("{name} Buffer").as_str(),
         vk::SharingMode::EXCLUSIVE,
         usage | vk::BufferUsageFlags::TRANSFER_DST,
         gpu_allocator::MemoryLocation::GpuOnly,
     );
 
     copy_buffer(
-        &device,
+        device,
         buffer,
         staging_buffer,
         size_of_val(&data) as u64,
@@ -217,7 +231,12 @@ fn create_buffer_staging<T: bytemuck::Pod>(
         .free(staging_allocation)
         .expect("Failed to free staging allocation");
 
-    (buffer, allocation)
+    Buffer {
+        name: name.to_owned(),
+        buffer,
+        buffer_type: usage,
+        allocation: Some(allocation),
+    }
 }
 
 fn create_descriptor_set(device: &ash::Device) -> vk::DescriptorSetLayout {
@@ -229,8 +248,6 @@ fn create_descriptor_set(device: &ash::Device) -> vk::DescriptorSetLayout {
 
     let binding = [*ubo_layout_binding];
     let descriptor_create_info = vk::DescriptorSetLayoutCreateInfo::builder().bindings(&binding);
-
-    
 
     unsafe { device.create_descriptor_set_layout(&descriptor_create_info, None) }
         .expect("Failed to create descriptor set layout")

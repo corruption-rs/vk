@@ -14,10 +14,10 @@ pub fn create_pipeline(
     set_layouts: Option<vk::DescriptorSetLayout>,
 ) -> PipelineInfo {
     let vert_module =
-        create_shader_pipeline(device, file::read_file(&format!("{}_v.spv", shader_name)));
+        create_shader_pipeline(device, file::read_file(&format!("{shader_name}_v.spv")));
 
     let frag_module =
-        create_shader_pipeline(device, file::read_file(&format!("{}_f.spv", shader_name)));
+        create_shader_pipeline(device, file::read_file(&format!("{shader_name}_f.spv")));
 
     let vertex_pipeline_shader_stage_create_info = vk::PipelineShaderStageCreateInfo::builder()
         .stage(vk::ShaderStageFlags::VERTEX)

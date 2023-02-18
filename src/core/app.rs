@@ -5,7 +5,7 @@ use ash::vk;
 use gpu_allocator::vulkan;
 use raw_window_handle::HasRawDisplayHandle;
 
-use crate::core::buffers::{create_index_buffer, create_uniform_buffers, create_vertex_buffer};
+use crate::core::buffers::{create_index_buffer, create_uniform_buffer, create_vertex_buffer};
 use crate::core::camera::Camera;
 use crate::core::debug::create_debug;
 
@@ -17,11 +17,13 @@ use crate::core::{
     sync::create_sync,
 };
 
+use super::buffers::Buffer;
+use super::commands::CommandInfo;
 use super::structures::DebugInfo;
 
 use super::{
     commands::record_buffer,
-    structures::{CommandInfo, DeviceInfo, PipelineInfo, SurfaceInfo, SwapchainInfo, SyncInfo},
+    structures::{DeviceInfo, PipelineInfo, SurfaceInfo, SwapchainInfo, SyncInfo},
 };
 
 extern crate env_logger;
@@ -50,10 +52,7 @@ pub struct App {
     current_frame: usize,
     debug_info: DebugInfo,
     allocator: Option<vulkan::Allocator>,
-    vertex_buffer: vk::Buffer,
-    index_buffer: vk::Buffer,
-    uniform_buffers: Vec<vk::Buffer>,
-    allocations: Option<Vec<vulkan::Allocation>>,
+    buffers: Option<Vec<Buffer>>,
     last_modification_time: std::time::Duration,
 }
 
@@ -65,7 +64,8 @@ impl App {
         let enable_api_dump = std::env::var("ENABLE_API_DUMP").unwrap_or_else(|_| "0".to_string());
         let enable_renderdoc_capture =
             std::env::var("ENABLE_RENDERDOC_CAPTURE").unwrap_or_else(|_| "0".to_string());
-        let enable_validation = std::env::var("ENABLE_VALIDATION").unwrap_or_else(|_| "0".to_string());
+        let enable_validation =
+            std::env::var("ENABLE_VALIDATION").unwrap_or_else(|_| "0".to_string());
 
         env_logger::init();
 
@@ -185,9 +185,9 @@ impl App {
             &device_info.device,
         );
 
-        let mut allocations = Vec::new();
+        let mut buffers = Vec::new();
 
-        let (vertex_buffer, vertex_allocation) = create_vertex_buffer(
+        let vertex_buffer = create_vertex_buffer(
             QUAD_VERTICES,
             &mut allocator,
             &device_info.device,
@@ -195,9 +195,9 @@ impl App {
             device_info.queue,
         );
 
-        allocations.push(vertex_allocation);
+        buffers.push(vertex_buffer);
 
-        let (index_buffer, index_allocation) = create_index_buffer(
+        let index_buffer = create_index_buffer(
             QUAD_INDICES,
             &mut allocator,
             &device_info.device,
@@ -205,7 +205,7 @@ impl App {
             device_info.queue,
         );
 
-        allocations.push(index_allocation);
+        buffers.push(index_buffer);
 
         let sync_info = create_sync(&device_info.device);
 
@@ -230,8 +230,7 @@ impl App {
             }
         }
 
-        let mut uniform_buffers = Vec::new();
-        create_uniform_buffers(
+        let mut uniform_buffers = create_uniform_buffer(
             vec![Camera {
                 model: cgmath::Matrix4::from_scale(1.0),
                 view: cgmath::Matrix4::from_scale(1.0),
@@ -241,8 +240,9 @@ impl App {
             &device_info.device,
             command_info.command_pool,
             device_info.queue,
-            &mut uniform_buffers,
         );
+
+        buffers.append(&mut uniform_buffers);
 
         let game = App {
             window,
@@ -257,12 +257,9 @@ impl App {
             is_exiting: false,
             current_frame: 0,
             allocator: Some(allocator),
-            vertex_buffer,
-            index_buffer,
             debug_info,
-            allocations: Some(allocations),
             last_modification_time,
-            uniform_buffers
+            buffers: Some(buffers),
         };
 
         game.run(event_loop);
@@ -332,27 +329,17 @@ impl App {
         }
         .expect("Failed to wait for queue idle");
 
-        {
-            let mut allocator = self.allocator.take().expect("Failed to get allocator");
+        let mut allocator = self.allocator.take().expect("Failed to get allocator");
 
-            for allocation in self.allocations.take().expect("Failed to get allocation") {
-                allocator
-                    .free(allocation)
-                    .expect("Failed to free allocation");
-            }
+        for mut buffer in self.buffers.take().unwrap() {
+            let allocation = buffer.allocation.take().unwrap();
+            unsafe { self.device_info.device.destroy_buffer(buffer.buffer, None) };
+            allocator
+                .free(allocation)
+                .expect("Failed to free allocation");
         }
 
-        unsafe {
-            self.device_info
-                .device
-                .destroy_buffer(self.vertex_buffer, None)
-        };
-
-        unsafe {
-            self.device_info
-                .device
-                .destroy_buffer(self.index_buffer, None)
-        };
+        drop(allocator);
 
         for semaphore in &self.sync_info.render_semaphores {
             unsafe { self.device_info.device.destroy_semaphore(*semaphore, None) }
@@ -464,17 +451,7 @@ impl App {
             Some(self.swapchain_info.swapchains.clone()),
         );
         for _ in &self.swapchain_info.swapchains.clone() {
-            if self
-                .swapchain_info
-                .swapchains
-                .first()
-                .expect("Failed to get swapchains")
-                != self
-                    .swapchain_info
-                    .swapchains
-                    .last()
-                    .expect("Failed to get swapchains")
-            {
+            if self.swapchain_info.swapchains.len() > 1 {
                 unsafe {
                     self.swapchain_info
                         .loader
@@ -653,8 +630,8 @@ impl App {
             self.framebuffers.clone(),
             &self.device_info.device,
             self.command_info.command_buffers[self.current_frame],
-            &self.vertex_buffer,
-            &self.index_buffer,
+            &self.buffers.as_ref().expect("Failed to get vertex buffer")[0].buffer,
+            &self.buffers.as_ref().expect("Failed to get index buffer")[1].buffer,
             QUAD_INDICES
                 .len()
                 .try_into()
