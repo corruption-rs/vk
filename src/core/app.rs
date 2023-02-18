@@ -38,7 +38,7 @@ const RENDERDOC_CAPTURE: &str = "VK_LAYER_RENDERDOC_Capture\0";
 
 const VALIDATION: &str = "VK_LAYER_KHRONOS_validation\0";
 
-pub const MAX_CONCURRENT_FRAMES: u8 = 2;
+pub const MAX_CONCURRENT_FRAMES: u8 = 9;
 
 pub struct App {
     window: winit::window::Window,
@@ -58,7 +58,6 @@ pub struct App {
     descriptor_sets: Vec<vk::DescriptorSet>,
     descriptor_pool: vk::DescriptorPool,
     descriptor_set_layouts: Vec<vk::DescriptorSetLayout>,
-    last_modification_time: std::time::Duration,
     total_delta: f32,
 }
 
@@ -272,7 +271,6 @@ impl App {
             descriptor_sets,
             descriptor_pool,
             descriptor_set_layouts,
-            last_modification_time,
             buffers: Some(buffers),
             total_delta: 0.1,
         };
@@ -552,96 +550,6 @@ impl App {
         );
     }
 
-    fn check_for_shader_modification(&mut self) {
-        unsafe { self.device_info.device.device_wait_idle() }
-            .expect("Failed to wait for device idle");
-
-        unsafe {
-            self.device_info
-                .device
-                .queue_wait_idle(self.device_info.queue)
-        }
-        .expect("Failed to wait for queue idle");
-
-        let mut last_modification_time = std::time::Duration::from_millis(0);
-        for entry in glob::glob("assets/shaders/*.spv").expect("Failed to get assets/shaders/*.spv")
-        {
-            match entry {
-                Ok(path) => {
-                    let metadata = std::fs::metadata(path).expect("Failed to get file metadata");
-                    let modification_time = metadata
-                        .modified()
-                        .expect("Failed to get modification time")
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .expect("Failed to get time since unix epoch")
-                        .as_millis();
-                    if modification_time > last_modification_time.as_millis() {
-                        last_modification_time =
-                            std::time::Duration::from_millis(modification_time.try_into().unwrap());
-                    }
-                }
-                Err(e) => panic!("{}", e),
-            }
-        }
-
-        if last_modification_time != self.last_modification_time {
-            self.last_modification_time = last_modification_time;
-
-            unsafe {
-                self.device_info
-                    .device
-                    .destroy_command_pool(self.command_info.command_pool, None)
-            }
-
-            unsafe {
-                self.device_info
-                    .device
-                    .destroy_render_pass(self.pipeline_info.render_pass, None)
-            }
-
-            unsafe {
-                self.device_info
-                    .device
-                    .destroy_pipeline_layout(self.pipeline_info.pipeline_layout, None)
-            }
-
-            unsafe {
-                for shader_module in self.pipeline_info.shader_modules {
-                    self.device_info
-                        .device
-                        .destroy_shader_module(shader_module, None)
-                }
-            }
-
-            unsafe {
-                self.device_info.device.destroy_pipeline(
-                    *self
-                        .pipeline_info
-                        .pipeline
-                        .first()
-                        .expect("Failed to find first pipeline"),
-                    None,
-                )
-            }
-
-            self.pipeline_info = create_pipeline(
-                &self.device_info.device,
-                "assets/shaders/default",
-                &self.swapchain_info.extent,
-                self.swapchain_info.current_format,
-                &self.descriptor_set_layouts,
-            );
-
-            self.command_info = create_command_pool(
-                self.device_info
-                    .queue_families
-                    .first()
-                    .expect("Failed to get queue family"),
-                &self.device_info.device,
-            );
-        }
-    }
-
     fn render(&mut self) {
         if self.is_exiting {
             return;
@@ -660,7 +568,7 @@ impl App {
         }
         .expect("Failed to wait for fences");
 
-        self.check_for_shader_modification();
+        // self.check_for_shader_modification();
 
         let result = unsafe {
             self.swapchain_info.loader.acquire_next_image(
