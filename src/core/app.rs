@@ -280,7 +280,7 @@ impl App {
 
     fn run(mut self, event_loop: winit::event_loop::EventLoop<()>) {
         event_loop.run(move |event, _, control_flow| {
-            *control_flow = winit::event_loop::ControlFlow::Wait;
+            *control_flow = winit::event_loop::ControlFlow::Poll;
 
             match event {
                 winit::event::Event::WindowEvent {
