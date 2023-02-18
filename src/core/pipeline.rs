@@ -4,7 +4,17 @@ use ash::vk;
 
 use crate::io::file;
 
-use super::{structures::PipelineInfo, vertex::Vertex};
+use super::vertex::Vertex;
+
+#[derive(Clone)]
+pub struct PipelineInfo {
+    pub pipeline: Vec<vk::Pipeline>,
+    pub pipeline_layout: vk::PipelineLayout,
+    pub render_pass: vk::RenderPass,
+    pub shader_modules: [vk::ShaderModule; 2],
+    pub render_pass_info: vk::RenderPassCreateInfo,
+}
+
 
 pub fn create_pipeline(
     device: &ash::Device,

@@ -1,6 +1,11 @@
 use ash::vk;
 
-use super::structures::DebugInfo;
+
+#[derive(Clone)]
+pub struct DebugInfo {
+    pub loader: ash::extensions::ext::DebugUtils,
+    pub messenger: vk::DebugUtilsMessengerEXT,
+}
 
 unsafe extern "system" fn debug_callback(
     _message_severity: vk::DebugUtilsMessageSeverityFlagsEXT,

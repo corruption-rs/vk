@@ -1,6 +1,6 @@
 use ash::vk;
 
-use super::structures::{PipelineInfo, SwapchainInfo};
+use super::{swapchain::SwapchainInfo, pipeline::PipelineInfo};
 
 pub fn create_framebuffers(
     swapchain_info: SwapchainInfo,

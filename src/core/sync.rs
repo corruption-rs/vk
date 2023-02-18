@@ -1,6 +1,13 @@
 use ash::vk;
 
-use super::{app::MAX_CONCURRENT_FRAMES, structures::SyncInfo};
+use super::app::MAX_CONCURRENT_FRAMES;
+
+#[derive(Clone)]
+pub struct SyncInfo {
+    pub render_semaphores: Vec<vk::Semaphore>,
+    pub image_semaphores: Vec<vk::Semaphore>,
+    pub frame_fences: Vec<vk::Fence>,
+}
 
 pub fn create_sync(device: &ash::Device) -> SyncInfo {
     let semaphore_info = vk::SemaphoreCreateInfo::builder();

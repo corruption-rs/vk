@@ -21,12 +21,14 @@ use crate::core::{
 
 use super::buffers::Buffer;
 use super::commands::CommandInfo;
-use super::structures::DebugInfo;
 
-use super::{
-    commands::record_buffer,
-    structures::{DeviceInfo, PipelineInfo, SurfaceInfo, SwapchainInfo, SyncInfo},
-};
+use super::commands::record_buffer;
+use super::debug::DebugInfo;
+use super::device::DeviceInfo;
+use super::pipeline::PipelineInfo;
+use super::surface::SurfaceInfo;
+use super::swapchain::SwapchainInfo;
+use super::sync::SyncInfo;
 
 extern crate env_logger;
 
@@ -421,9 +423,10 @@ impl App {
         }
 
         unsafe {
-            self.device_info
-                .device
-                .destroy_descriptor_set_layout(self.descriptor_set_layouts[self.current_frame], None)
+            self.device_info.device.destroy_descriptor_set_layout(
+                self.descriptor_set_layouts[self.current_frame],
+                None,
+            )
         }
 
         unsafe {

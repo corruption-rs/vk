@@ -8,7 +8,6 @@ mod device;
 mod framebuffer;
 pub mod geometry;
 mod pipeline;
-mod structures;
 mod surface;
 mod swapchain;
 mod sync;

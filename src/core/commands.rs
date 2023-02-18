@@ -1,10 +1,6 @@
 use ash::vk::{self, Offset2D};
 
-use super::{
-    app::MAX_CONCURRENT_FRAMES,
-    buffers::Buffer,
-    structures::{PipelineInfo, QueueFamily, SwapchainInfo},
-};
+use super::{app::MAX_CONCURRENT_FRAMES, buffers::Buffer, swapchain::SwapchainInfo, device::QueueFamily, pipeline::PipelineInfo};
 
 #[derive(Clone)]
 pub struct CommandInfo {
