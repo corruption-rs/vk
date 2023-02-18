@@ -5,7 +5,9 @@ use ash::vk;
 use gpu_allocator::vulkan;
 use raw_window_handle::HasRawDisplayHandle;
 
-use crate::core::buffers::{create_index_buffer, create_uniform_buffer, create_vertex_buffer};
+use crate::core::buffers::{
+    create_descriptor_sets, create_index_buffer, create_uniform_buffers, create_vertex_buffer,
+};
 use crate::core::camera::Camera;
 use crate::core::debug::create_debug;
 
@@ -53,6 +55,9 @@ pub struct App {
     debug_info: DebugInfo,
     allocator: Option<vulkan::Allocator>,
     buffers: Option<Vec<Buffer>>,
+    descriptor_sets: Vec<vk::DescriptorSet>,
+    descriptor_pool: vk::DescriptorPool,
+    descriptor_set_layouts: Vec<vk::DescriptorSetLayout>,
     last_modification_time: std::time::Duration,
 }
 
@@ -163,25 +168,43 @@ impl App {
             None,
         );
 
-        let pipeline_info = create_pipeline(
-            &device_info.device,
-            "assets/shaders/default",
-            &swapchain_info.extent,
-            swapchain_info.formats[0].format,
-            None,
-        );
-
-        let framebuffers = create_framebuffers(
-            swapchain_info.clone(),
-            pipeline_info.clone(),
-            &device_info.device,
-        );
-
         let command_info = create_command_pool(
             device_info
                 .queue_families
                 .first()
                 .expect("Failed to get queue family"),
+            &device_info.device,
+        );
+
+        let uniform_buffers = create_uniform_buffers(
+            Camera {
+                model: cgmath::Matrix4::from_scale(1.0),
+                view: cgmath::Matrix4::from_scale(1.0),
+                proj: cgmath::Matrix4::from_scale(1.0),
+            },
+            &mut allocator,
+            &device_info.device,
+            command_info.command_pool,
+            device_info.queue,
+        );
+
+        let (descriptor_sets, descriptor_pool, descriptor_set_layouts) = create_descriptor_sets(
+            &device_info.device,
+            &uniform_buffers,
+            Camera::default(),
+        );
+
+        let pipeline_info = create_pipeline(
+            &device_info.device,
+            "assets/shaders/default",
+            &swapchain_info.extent,
+            swapchain_info.formats[0].format,
+            &descriptor_set_layouts,
+        );
+
+        let framebuffers = create_framebuffers(
+            swapchain_info.clone(),
+            pipeline_info.clone(),
             &device_info.device,
         );
 
@@ -230,19 +253,9 @@ impl App {
             }
         }
 
-        let mut uniform_buffers = create_uniform_buffer(
-            vec![Camera {
-                model: cgmath::Matrix4::from_scale(1.0),
-                view: cgmath::Matrix4::from_scale(1.0),
-                proj: cgmath::Matrix4::from_scale(1.0),
-            }],
-            &mut allocator,
-            &device_info.device,
-            command_info.command_pool,
-            device_info.queue,
-        );
-
-        buffers.append(&mut uniform_buffers);
+        for buffer in uniform_buffers {
+            buffers.push(buffer);
+        }
 
         let game = App {
             window,
@@ -258,6 +271,9 @@ impl App {
             current_frame: 0,
             allocator: Some(allocator),
             debug_info,
+            descriptor_sets,
+            descriptor_pool,
+            descriptor_set_layouts,
             last_modification_time,
             buffers: Some(buffers),
         };
@@ -305,19 +321,76 @@ impl App {
         });
     }
 
-    fn update(&self) {
+    fn update(&self, current_image: usize) {
         let start = std::time::Instant::now();
         let current = std::time::Instant::now();
         let time = (current - start).as_secs_f32();
-        // let camera = Camera {
-        //     model: cgmath::Matrix4::from(time * 3.1415),
-        //     view: todo!(),
-        //     proj: todo!(),
-        // }
+        let camera = Camera {
+            model: cgmath::Matrix4::from_axis_angle(
+                cgmath::Vector3 {
+                    x: 1.0,
+                    y: 1.0,
+                    z: 1.0,
+                },
+                cgmath::Deg(time * 90.0),
+            ),
+            view: cgmath::Matrix4::look_at_lh(
+                cgmath::Point3 {
+                    x: 2.0,
+                    y: 2.0,
+                    z: 2.0,
+                },
+                cgmath::Point3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                cgmath::Vector3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 1.0,
+                },
+            ),
+            proj: cgmath::perspective(
+                cgmath::Deg(170.0),
+                self.swapchain_info.extent.width as f32 / self.swapchain_info.extent.height as f32,
+                0.1,
+                10.0,
+            ),
+        };
+
+        let buffers = self.buffers.as_ref().expect("Failed to get buffers");
+
+        let buffers = buffers
+            .iter()
+            .filter(|buffer| buffer.buffer_type == vk::BufferUsageFlags::UNIFORM_BUFFER)
+            .collect::<Vec<&Buffer>>();
+
+        let allocation = &buffers[current_image]
+            .allocation
+            .as_ref()
+            .expect("Failed to get allocation at index");
+
+        unsafe {
+            std::ptr::copy_nonoverlapping(
+                bytemuck::cast_slice(&[camera]).as_ptr() as *const u8,
+                allocation
+                    .mapped_ptr()
+                    .expect("Memory is not host visible")
+                    .as_ptr() as *mut u8,
+                std::mem::size_of_val(&camera),
+            )
+        };
     }
 
     fn cleanup(&mut self) {
         self.is_exiting = true;
+
+        unsafe {
+            self.device_info
+                .device
+                .destroy_descriptor_pool(self.descriptor_pool, None)
+        };
 
         unsafe { self.device_info.device.device_wait_idle() }
             .expect("Failed to wait for device idle");
@@ -554,7 +627,7 @@ impl App {
                 "assets/shaders/default",
                 &self.swapchain_info.extent,
                 self.swapchain_info.formats[0].format,
-                None,
+                &self.descriptor_set_layouts,
             );
 
             self.command_info = create_command_pool(
@@ -571,6 +644,8 @@ impl App {
         if self.is_exiting {
             return;
         }
+
+        self.update(self.current_frame);
 
         unsafe {
             self.device_info.device.wait_for_fences(
@@ -630,12 +705,13 @@ impl App {
             self.framebuffers.clone(),
             &self.device_info.device,
             self.command_info.command_buffers[self.current_frame],
-            &self.buffers.as_ref().expect("Failed to get vertex buffer")[0].buffer,
-            &self.buffers.as_ref().expect("Failed to get index buffer")[1].buffer,
+            self.buffers.as_ref().unwrap(),
             QUAD_INDICES
                 .len()
                 .try_into()
                 .expect("Failed to convert to u32"),
+            &self.descriptor_sets,
+            self.current_frame
         );
 
         let signal_semaphores = [self.sync_info.render_semaphores[self.current_frame]];

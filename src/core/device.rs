@@ -19,7 +19,7 @@ pub fn create_device(instance: &ash::Instance) -> DeviceInfo {
             if family.queue_flags.contains(vk::QueueFlags::GRAPHICS) {
                 let mut priority = match properties.device_type {
                     vk::PhysicalDeviceType::DISCRETE_GPU => 4,
-                    vk::PhysicalDeviceType::INTEGRATED_GPU => 30,
+                    vk::PhysicalDeviceType::INTEGRATED_GPU => 3,
                     vk::PhysicalDeviceType::VIRTUAL_GPU => 2,
                     _ => 1,
                 };

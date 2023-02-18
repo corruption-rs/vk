@@ -1,8 +1,10 @@
-use std::{mem::size_of_val, ptr};
+use std::{mem::size_of_val, ptr, char::MAX};
 
 use ash::vk;
 
 use gpu_allocator::vulkan;
+
+use super::app::MAX_CONCURRENT_FRAMES;
 
 pub struct Buffer {
     pub name: String,
@@ -60,6 +62,7 @@ pub fn create_vertex_buffer<T: bytemuck::Pod>(
         queue,
         vk::BufferUsageFlags::VERTEX_BUFFER,
         "Vertex",
+        gpu_allocator::MemoryLocation::GpuOnly,
     )
 }
 
@@ -78,11 +81,12 @@ pub fn create_index_buffer<T: bytemuck::Pod>(
         queue,
         vk::BufferUsageFlags::INDEX_BUFFER,
         "Index",
+        gpu_allocator::MemoryLocation::GpuOnly,
     )
 }
 
-pub fn create_uniform_buffer<T: bytemuck::Pod>(
-    uniform_data: Vec<T>,
+pub fn create_uniform_buffers<T: bytemuck::Pod>(
+    uniform_data: T,
     allocator: &mut gpu_allocator::vulkan::Allocator,
     device: &ash::Device,
     command_pool: vk::CommandPool,
@@ -91,26 +95,25 @@ pub fn create_uniform_buffer<T: bytemuck::Pod>(
     let mut allocations = Vec::new();
     let mut buffers = Vec::new();
     let mut uniform_buffers = Vec::new();
-    for i in uniform_data {
+    for i in 0..MAX_CONCURRENT_FRAMES {
         let buffer = create_buffer_staging(
-            i,
+            uniform_data,
             allocator,
             device,
             command_pool,
             queue,
             vk::BufferUsageFlags::UNIFORM_BUFFER,
             "Uniform",
+            gpu_allocator::MemoryLocation::GpuToCpu,
         );
         uniform_buffers.push(buffer.buffer);
         allocations.push(buffer.allocation);
-    }
-    for i in 0..uniform_buffers.len() {
         buffers.push(Buffer {
             name: "Uniform".to_owned(),
-            buffer: uniform_buffers[i],
+            buffer: uniform_buffers[i as usize],
             buffer_type: vk::BufferUsageFlags::UNIFORM_BUFFER,
-            allocation: allocations[i].take(),
-        })
+            allocation: allocations[i as usize].take(),
+        });
     }
 
     buffers
@@ -176,7 +179,7 @@ fn copy_buffer(
     unsafe { device.free_command_buffers(command_pool, &command_buffer) };
 }
 
-fn create_buffer_staging<T: bytemuck::Pod>(
+pub fn create_buffer_staging<T: bytemuck::Pod>(
     data: T,
     allocator: &mut gpu_allocator::vulkan::Allocator,
     device: &ash::Device,
@@ -184,6 +187,7 @@ fn create_buffer_staging<T: bytemuck::Pod>(
     queue: vk::Queue,
     usage: vk::BufferUsageFlags,
     name: &str,
+    location: gpu_allocator::MemoryLocation,
 ) -> Buffer {
     let (staging_buffer, staging_allocation) = create_buffer(
         device,
@@ -213,7 +217,7 @@ fn create_buffer_staging<T: bytemuck::Pod>(
         format!("{name} Buffer").as_str(),
         vk::SharingMode::EXCLUSIVE,
         usage | vk::BufferUsageFlags::TRANSFER_DST,
-        gpu_allocator::MemoryLocation::GpuOnly,
+        location,
     );
 
     copy_buffer(
@@ -239,7 +243,11 @@ fn create_buffer_staging<T: bytemuck::Pod>(
     }
 }
 
-fn create_descriptor_set(device: &ash::Device) -> vk::DescriptorSetLayout {
+pub fn create_descriptor_sets<T: bytemuck::Pod>(
+    device: &ash::Device,
+    uniform_buffers: &[Buffer],
+    data_type: T,
+) -> (Vec<vk::DescriptorSet>, vk::DescriptorPool, Vec<vk::DescriptorSetLayout>) {
     let ubo_layout_binding = vk::DescriptorSetLayoutBinding::builder()
         .binding(0)
         .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
@@ -249,6 +257,52 @@ fn create_descriptor_set(device: &ash::Device) -> vk::DescriptorSetLayout {
     let binding = [*ubo_layout_binding];
     let descriptor_create_info = vk::DescriptorSetLayoutCreateInfo::builder().bindings(&binding);
 
-    unsafe { device.create_descriptor_set_layout(&descriptor_create_info, None) }
-        .expect("Failed to create descriptor set layout")
+    let layout = unsafe { device.create_descriptor_set_layout(&descriptor_create_info, None) }
+        .expect("Failed to create descriptor set layout");
+
+    let descriptor_pool_size =
+        vk::DescriptorPoolSize::builder().descriptor_count(MAX_CONCURRENT_FRAMES as u32)
+        .ty(vk::DescriptorType::UNIFORM_BUFFER);
+
+    let descriptor_pool_sizes = [*descriptor_pool_size];
+    let pool_info = vk::DescriptorPoolCreateInfo::builder()
+        .pool_sizes(&descriptor_pool_sizes)
+        .max_sets(MAX_CONCURRENT_FRAMES as u32);
+
+    let descriptor_pool = unsafe { device.create_descriptor_pool(&pool_info, None) }
+        .expect("Failed to create descriptor pool");
+
+    let layouts = [layout; MAX_CONCURRENT_FRAMES as usize];
+    let allocate_info = vk::DescriptorSetAllocateInfo::builder()
+        .descriptor_pool(descriptor_pool)
+        .set_layouts(&layouts);
+
+    let descriptor_sets = unsafe { device.allocate_descriptor_sets(&allocate_info) }
+        .expect("Failed to allocate descriptor sets");
+    
+
+    for i in 0..descriptor_sets.len() as usize {
+        let buffer_info = vk::DescriptorBufferInfo::builder()
+            .buffer(
+                uniform_buffers
+                    .iter()
+                    .map(|buffer| buffer.buffer)
+                    .collect::<Vec<vk::Buffer>>()[i],
+            )
+            .offset(0)
+            .range(std::mem::size_of_val(&data_type) as u64);
+
+        let buffer_infos = &[*buffer_info];
+
+        let descriptor_write = vk::WriteDescriptorSet::builder()
+            .dst_set(descriptor_sets[i])
+            .dst_binding(0)
+            .dst_array_element(0)
+            .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
+            .buffer_info(buffer_infos);
+
+        unsafe { device.update_descriptor_sets(&[*descriptor_write], &[]) }
+    }
+
+    (descriptor_sets, descriptor_pool, layouts.to_vec())
 }

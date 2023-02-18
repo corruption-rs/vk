@@ -11,7 +11,7 @@ pub fn create_pipeline(
     shader_name: &str,
     extent: &vk::Extent2D,
     format: vk::Format,
-    set_layouts: Option<vk::DescriptorSetLayout>,
+    set_layouts: &Vec<vk::DescriptorSetLayout>,
 ) -> PipelineInfo {
     let vert_module =
         create_shader_pipeline(device, file::read_file(&format!("{shader_name}_v.spv")));
@@ -81,7 +81,7 @@ pub fn create_pipeline(
             .rasterizer_discard_enable(false)
             .polygon_mode(vk::PolygonMode::FILL)
             .cull_mode(vk::CullModeFlags::BACK)
-            .front_face(vk::FrontFace::CLOCKWISE)
+            .front_face(vk::FrontFace::COUNTER_CLOCKWISE)
             .depth_bias_enable(false);
 
     let pipeline_multisample_state_create_info = vk::PipelineMultisampleStateCreateInfo::builder()
@@ -103,10 +103,9 @@ pub fn create_pipeline(
         .logic_op_enable(false)
         .attachments(&attachments);
 
-    let _set_layouts = [set_layouts.unwrap_or(vk::DescriptorSetLayout::null())];
 
-    let pipeline_layout_create_info = if set_layouts.is_some() {
-        vk::PipelineLayoutCreateInfo::builder().set_layouts(&_set_layouts)
+    let pipeline_layout_create_info = if set_layouts.len() > 0 {
+        vk::PipelineLayoutCreateInfo::builder().set_layouts(&set_layouts)
     } else {
         vk::PipelineLayoutCreateInfo::builder()
     };

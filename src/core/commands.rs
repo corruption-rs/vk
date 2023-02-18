@@ -2,9 +2,9 @@ use ash::vk::{self, Offset2D};
 
 use super::{
     app::MAX_CONCURRENT_FRAMES,
+    buffers::Buffer,
     structures::{PipelineInfo, QueueFamily, SwapchainInfo},
 };
-
 
 #[derive(Clone)]
 pub struct CommandInfo {
@@ -43,9 +43,10 @@ pub fn record_buffer(
     framebuffers: Vec<vk::Framebuffer>,
     device: &ash::Device,
     command_buffer: vk::CommandBuffer,
-    vertex_buffer: &vk::Buffer,
-    index_buffer: &vk::Buffer,
-    index_count: u32,
+    buffers: &[Buffer],
+    count: u32,
+    descriptor_sets: &Vec<vk::DescriptorSet>,
+    current_frame: usize,
 ) {
     let buffer_begin_info = vk::CommandBufferBeginInfo::builder();
     unsafe { device.begin_command_buffer(command_buffer, &buffer_begin_info) }
@@ -96,12 +97,59 @@ pub fn record_buffer(
         )
     };
 
-    unsafe { device.cmd_bind_vertex_buffers(command_buffer, 0, &[*vertex_buffer], &[0]) }
-    unsafe { device.cmd_bind_index_buffer(command_buffer, *index_buffer, 0, vk::IndexType::UINT16) }
+    unsafe {
+        device.cmd_bind_vertex_buffers(
+            command_buffer,
+            0,
+            &buffers
+                .iter()
+                .filter(|buffer| buffer.buffer_type == vk::BufferUsageFlags::VERTEX_BUFFER)
+                .map(|buffer| buffer.buffer)
+                .collect::<Vec<vk::Buffer>>(),
+            &[0],
+        )
+    }
+
+    let index_buffers = buffers
+        .iter()
+        .filter(|buffer| buffer.buffer_type == vk::BufferUsageFlags::INDEX_BUFFER)
+        .map(|buffer| buffer.buffer)
+        .collect::<Vec<vk::Buffer>>();
+
+    let use_index_buffer = index_buffers.first().is_some();
+
+    if use_index_buffer {
+        unsafe {
+            device.cmd_bind_index_buffer(
+                command_buffer,
+                *index_buffers
+                    .first()
+                    .expect("Failed to get first index buffer"),
+                0,
+                vk::IndexType::UINT16,
+            )
+        }
+    }
 
     unsafe { device.cmd_set_viewport(command_buffer, 0, &[*viewport]) }
     unsafe { device.cmd_set_scissor(command_buffer, 0, &[*scissor]) };
-    unsafe { device.cmd_draw_indexed(command_buffer, index_count, 1, 0, 0, 0) };
+
+    unsafe {
+        device.cmd_bind_descriptor_sets(
+            command_buffer,
+            vk::PipelineBindPoint::GRAPHICS,
+            pipeline_info.pipeline_layout,
+            0,
+            &[descriptor_sets[current_frame]],
+            &[],
+        )
+    }
+
+    if use_index_buffer {
+        unsafe { device.cmd_draw_indexed(command_buffer, count, 1, 0, 0, 0) };
+    } else {
+        unsafe { device.cmd_draw(command_buffer, count, 0, 0, 0) };
+    }
 
     unsafe { device.cmd_end_render_pass(command_buffer) };
 
