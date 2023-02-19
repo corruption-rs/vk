@@ -1,4 +1,3 @@
-mod allocator;
 pub mod app;
 mod buffers;
 pub mod camera;

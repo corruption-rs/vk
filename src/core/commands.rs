@@ -1,6 +1,9 @@
 use ash::vk::{self, Offset2D};
 
-use super::{app::MAX_CONCURRENT_FRAMES, buffers::Buffer, swapchain::SwapchainInfo, device::QueueFamily, pipeline::PipelineInfo};
+use super::{
+    app::MAX_CONCURRENT_FRAMES, buffers::Buffer, device::QueueFamily, pipeline::PipelineInfo,
+    swapchain::SwapchainInfo,
+};
 
 #[derive(Clone)]
 pub struct CommandInfo {
@@ -114,6 +117,14 @@ pub fn record_buffer(
 
     let use_index_buffer = index_buffers.first().is_some();
 
+    let uniform_buffers = buffers
+        .iter()
+        .filter(|buffer| buffer.buffer_type == vk::BufferUsageFlags::UNIFORM_BUFFER)
+        .map(|buffer| buffer.buffer)
+        .collect::<Vec<vk::Buffer>>();
+
+    let use_uniform_buffer = uniform_buffers.first().is_some();
+
     if use_index_buffer {
         unsafe {
             device.cmd_bind_index_buffer(
@@ -130,15 +141,17 @@ pub fn record_buffer(
     unsafe { device.cmd_set_viewport(command_buffer, 0, &[*viewport]) }
     unsafe { device.cmd_set_scissor(command_buffer, 0, &[*scissor]) };
 
-    unsafe {
-        device.cmd_bind_descriptor_sets(
-            command_buffer,
-            vk::PipelineBindPoint::GRAPHICS,
-            pipeline_info.pipeline_layout,
-            0,
-            &[descriptor_sets[current_frame]],
-            &[],
-        )
+    if use_uniform_buffer {
+        unsafe {
+            device.cmd_bind_descriptor_sets(
+                command_buffer,
+                vk::PipelineBindPoint::GRAPHICS,
+                pipeline_info.pipeline_layout,
+                0,
+                &[descriptor_sets[current_frame]],
+                &[],
+            )
+        }
     }
 
     if use_index_buffer {
