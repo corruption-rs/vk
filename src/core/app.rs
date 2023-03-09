@@ -675,7 +675,7 @@ impl App {
             )
         };
 
-        if result.err() == Some(vk::Result::ERROR_OUT_OF_DATE_KHR) {
+        if result == Err(vk::Result::ERROR_OUT_OF_DATE_KHR) {
             self.resize();
             return;
         }
