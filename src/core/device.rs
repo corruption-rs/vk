@@ -1,6 +1,25 @@
 use ash::vk;
 
-use super::structures::{DeviceInfo, LogicalDevice, QueueFamily};
+#[derive(Debug, Clone)]
+pub struct LogicalDevice {
+    pub physical_device: vk::PhysicalDevice,
+    pub properties: vk::PhysicalDeviceProperties,
+    pub priority: u64,
+}
+
+#[derive(Clone)]
+pub struct DeviceInfo {
+    pub logical_devices: Vec<LogicalDevice>,
+    pub device: ash::Device,
+    pub queue_families: Vec<QueueFamily>,
+    pub queue: vk::Queue,
+}
+
+#[derive(Debug, Clone)]
+pub struct QueueFamily {
+    pub priorities: Box<[f32]>,
+    pub index: u32,
+}
 
 pub fn create_device(instance: &ash::Instance) -> DeviceInfo {
     let physical_devices = unsafe {
@@ -78,5 +97,20 @@ pub fn create_device(instance: &ash::Instance) -> DeviceInfo {
         device,
         queue_families,
         queue,
+    }
+}
+
+impl std::fmt::Display for LogicalDevice {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let device_name = std::str::from_utf8(unsafe {
+            &*(self.properties.device_name.as_slice() as *const [i8] as *const [u8])
+        });
+
+        write!(
+            f,
+            "Priority: {}; Device name: {}",
+            self.priority,
+            device_name.unwrap_or("Unknown device")
+        )
     }
 }

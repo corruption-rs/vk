@@ -281,7 +281,7 @@ pub fn create_descriptor_sets<T: bytemuck::Pod>(
         .expect("Failed to allocate descriptor sets");
     
 
-    for i in 0..descriptor_sets.len() {
+    for (i, descriptor_set) in descriptor_sets.iter().enumerate() {
         let buffer_info = vk::DescriptorBufferInfo::builder()
             .buffer(
                 uniform_buffers
@@ -295,7 +295,7 @@ pub fn create_descriptor_sets<T: bytemuck::Pod>(
         let buffer_infos = &[*buffer_info];
 
         let descriptor_write = vk::WriteDescriptorSet::builder()
-            .dst_set(descriptor_sets[i])
+            .dst_set(*descriptor_set)
             .dst_binding(0)
             .dst_array_element(0)
             .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)

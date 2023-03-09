@@ -1,6 +1,11 @@
+use ash::vk;
 use raw_window_handle::{HasRawDisplayHandle, HasRawWindowHandle};
 
-use super::structures::SurfaceInfo;
+#[derive(Clone)]
+pub struct SurfaceInfo {
+    pub surface: vk::SurfaceKHR,
+    pub surface_loader: ash::extensions::khr::Surface,
+}
 
 pub fn create_surface(
     window: &winit::window::Window,

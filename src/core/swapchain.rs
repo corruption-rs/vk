@@ -1,6 +1,16 @@
 use ash::vk::{self, CompositeAlphaFlagsKHR};
 
-use super::structures::{DeviceInfo, SurfaceInfo, SwapchainInfo};
+use super::{device::DeviceInfo, surface::SurfaceInfo};
+
+#[derive(Clone)]
+pub struct SwapchainInfo {
+    pub loader: ash::extensions::khr::Swapchain,
+    pub swapchains: Vec<vk::SwapchainKHR>,
+    pub swapchain_views: Vec<vk::ImageView>,
+    pub formats: Vec<vk::SurfaceFormatKHR>,
+    pub extent: vk::Extent2D,
+    pub current_format: vk::Format,
+}
 
 pub fn create_swapchain(
     device_info: DeviceInfo,
